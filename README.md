@@ -47,3 +47,7 @@ App-by-app details are in [SECURITY.md](SECURITY.md).
 ```
 
 Needs Xcode or the Command Line Tools (`xcode-select --install`). The build runs TUM's self-test and writes `build/TUM-0.1.0.dmg`. For day-to-day work, `./dev.sh --test` builds a debug copy ("TUM Dev") in seconds.
+
+## License
+
+Not chosen yet, so all rights reserved for now. TUM is a University of Maryland INST474 team project; an open-source license is planned.
