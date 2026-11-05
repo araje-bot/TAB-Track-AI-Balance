@@ -38,8 +38,6 @@ Or drag TUM from Applications to the Trash.
 - The installer downloads one exact release and checks it against a fingerprint written into the script. A different file is deleted, not installed. It never asks for your password.
 - No keyboard, screen or accessibility permissions. macOS may ask once about the Keychain when you connect Claude; choose Always Allow.
 
-App-by-app details are in [SECURITY.md](SECURITY.md).
-
 ## Build it yourself
 
 ```bash
