@@ -46,13 +46,21 @@ curl -fsSL https://raw.githubusercontent.com/araje-bot/TUM-Token-Utilization-Mon
 
 Or drag TUM from Applications to the Trash.
 
-## Why is TUM so safe?
+## How TUM works
 
-- TUM has no server, no account and no analytics. It runs only on your Mac.
-- It reads the sign-in each AI app already keeps on your Mac and sends it only to that app's own company, to ask how much is left. It never changes those sign-ins.
-- It never saves or sends your prompts, chats, files or code.
-- The installer downloads one exact release and checks it against a fingerprint written into the script. A different file is deleted, not installed. It never asks for your password.
-- No keyboard, screen or accessibility permissions. macOS may ask once about the Keychain when you connect Claude; choose Always Allow.
+1. **It finds your AI apps.** TUM checks which supported apps are on your Mac.
+2. **It uses the sign-in you already have.** Most AI apps keep you signed in on your Mac, and TUM uses that, so there is nothing new to log in to. For Cursor, and for GitHub Copilot when it isn't signed in yet, you sign in once in your browser. TUM keeps that sign-in on your Mac and deletes it when you remove the app.
+3. **It asks each app's own company how much is left.** Claude's numbers come from Anthropic, Codex's from OpenAI, and so on. TUM has no server, no account and no analytics, so nothing goes anywhere else.
+4. **It shows the answer in your menu bar.** TUM checks again whenever you use an app, and every so often in between.
+
+TUM only asks for usage numbers. It does not save your prompts, chats, files or code, and it does not change the sign-ins other apps keep.
+
+## Good to know
+
+- TUM never asks for your password, and it does not need keyboard, screen or accessibility permissions.
+- macOS may ask once about your Keychain when you connect Claude. Choose Always Allow.
+- The installer downloads one exact release and checks it against a fingerprint written into the script. A different file is deleted, not installed.
+- All of TUM's code is in this repository, so anyone can read exactly what it does.
 
 ## License
 
