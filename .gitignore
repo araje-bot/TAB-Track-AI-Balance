@@ -1,0 +1,24 @@
+# Build output and local files (never commit these)
+.build/
+build/
+releases/
+build-snapshots/
+*.dmg
+*.sha256
+*.log
+build-log.txt
+dev-log.txt
+run-log.txt
+.DS_Store
+.swiftpm/
+xcuserdata/
+*.xcuserstate
+.claude/
+
+# Private notes and secrets (never commit these)
+HANDOFF.md
+.env
+*.p12
+*.cer
+*.mobileprovision
+notarytool*
