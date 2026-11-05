@@ -390,6 +390,24 @@ enum SelfTest {
         shot(VStack(spacing: 10) {
             ForEach(cards.detected.prefix(3)) { app in AppCard(store: cards, app: app, connect: {}) }
         }.padding(12).frame(width: 280), NSSize(width: 280, height: 240), "light-app-cards", light: true)
+        // Pictures for the README, in Light Mode so every label reads correctly.
+        let tour = Store.preview(apps: ["claude": 62, "codex": 80, "cursor": 70, "grokbot": 55], onboardingDone: false)
+        shot(OnboardingView(store: tour, finish: {}, startStep: 1), NSSize(width: 800, height: OnboardingView.height), "readme-welcome", light: true)
+        shot(OnboardingView(store: tour, finish: {}, startStep: 3), NSSize(width: 800, height: OnboardingView.height), "readme-apps")
+        shot(OnboardingView(store: yellow, finish: {}, startStep: 4), NSSize(width: 800, height: OnboardingView.height), "readme-nudge", light: true)
+        shot(PopoverView(store: yellow, openSettings: {}, openAddMore: {}), NSSize(width: 340, height: 360), "readme-popover", light: true)
+        shot(DetailView(store: yellow, id: "claude", back: {}), NSSize(width: 340, height: 400), "readme-detail", light: true)
+        shot(HStack(alignment: .top, spacing: 36) {
+            ForEach([("All good", MorphMark(level: .ok, pct: nil, glyph: nil, symbol: "asterisk")),
+                     ("Getting low", MorphMark(level: .low, pct: 24, glyph: yellow.glyph("claude"), symbol: "asterisk")),
+                     ("Almost out", MorphMark(level: .out, pct: 8, glyph: yellow.glyph("claude"), symbol: "asterisk")),
+                     ("Use it before it resets", MorphMark(level: .use, pct: 85, glyph: yellow.glyph("claude"), symbol: "asterisk"))], id: \.0) { item in
+                VStack(spacing: 12) {
+                    item.1
+                    Text(item.0).font(.callout).foregroundStyle(.secondary)
+                }
+            }
+        }.padding(24), NSSize(width: 640, height: 110), "readme-pills", light: true)
         #endif
     }
 
