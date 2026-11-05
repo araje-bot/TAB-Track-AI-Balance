@@ -54,14 +54,6 @@ Or drag TUM from Applications to the Trash.
 - The installer downloads one exact release and checks it against a fingerprint written into the script. A different file is deleted, not installed. It never asks for your password.
 - No keyboard, screen or accessibility permissions. macOS may ask once about the Keychain when you connect Claude; choose Always Allow.
 
-## Build it yourself
-
-```bash
-./make_dmg.sh --allow-dirty
-```
-
-Needs Xcode or the Command Line Tools (`xcode-select --install`). The build runs TUM's self-test and writes `build/TUM-0.1.0.dmg`. For day-to-day work, `./dev.sh --test` builds a debug copy ("TUM Dev") in seconds.
-
 ## License
 
 Not chosen yet, so all rights reserved for now. TUM is a University of Maryland INST474 team project; an open-source license is planned.
