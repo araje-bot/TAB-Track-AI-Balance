@@ -30,7 +30,7 @@ curl -fsSL https://raw.githubusercontent.com/araje-bot/TUM-Token-Utilization-Mon
 
 Or drag TUM from Applications to the Trash.
 
-## Is this safe?
+## Why is TUM so safe?
 
 - TUM has no server, no account and no analytics. It runs only on your Mac.
 - It reads the sign-in each AI app already keeps on your Mac and sends it only to that app's own company, to ask how much is left. It never changes those sign-ins.
