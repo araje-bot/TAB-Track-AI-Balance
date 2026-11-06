@@ -156,7 +156,8 @@ struct SettingsView: View {
                     } label: { ButtonText(copied ? "Copied" : "Copy diagnostics") }
                     .secondaryButton()
                     .help("For support. It holds no sign-ins, prompts or work.")
-                    Button { NSApp.terminate(nil) } label: { ButtonText("Quit TUM") }.secondaryButton()
+                    // Red text like Remove (AK): deeper in Light Mode, lighter in Dark Mode, both readable.
+                    Button { NSApp.terminate(nil) } label: { ButtonText("Quit TUM").foregroundStyle(Palette.redText) }.secondaryButton()
                 }
                 HStack {
                     Spacer()

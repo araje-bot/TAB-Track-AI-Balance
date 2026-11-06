@@ -487,15 +487,15 @@ enum SelfTest {
             }
         }.padding(14), NSSize(width: 470, height: 260), "dev-logos")
         // The white marks TUM draws in usage circles and pills, for the supported apps.
-        let marks = Store.preview(apps: ["claude": 62, "codex": 80, "cursor": 70, "grokbot": 55, "copilot": 90])
+        let marks = Store.preview(apps: ["claude": 62, "codex": 80, "cursor": 70, "grokbot": 55, "copilot": 90, "gemini": 75])
         shot(HStack(spacing: 14) {
-            ForEach(["claude", "codex", "cursor", "grokbot", "copilot"], id: \.self) { id in
+            ForEach(["claude", "codex", "cursor", "grokbot", "copilot", "gemini"], id: \.self) { id in
                 VStack(spacing: 4) {
                     LiquidTile(pct: 60, level: .ok, glyph: marks.glyph(id), symbol: marks.symbol(id), size: 56)
                     Text(id).font(.caption2).foregroundStyle(.secondary)
                 }
             }
-        }.padding(14), NSSize(width: 400, height: 110), "dev-marks")
+        }.padding(14), NSSize(width: 470, height: 110), "dev-marks")
         let pending = Store.preview(apps: ["claude": 62])
         pending.snapshots["claude"] = nil
         pending.needsApproval = ["claude"]
