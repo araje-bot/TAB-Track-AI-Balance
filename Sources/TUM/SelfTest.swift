@@ -188,7 +188,7 @@ enum SelfTest {
         check("Menu bar turns into the pill when an app is low", abs(pillWidth - StatusItemController.slotWidth(urgentPct: 24)) < 1)
         check("Menu bar goes back to the icon when all is good", abs(iconWidth - StatusItemController.slotWidth(urgentPct: nil)) < 1)
         NSStatusBar.system.removeStatusItem(bar.item)
-        // The pill follows the latest app to run low; an earlier one returns only when it turns red.
+        // Pill turns (AK): news first, then every app in the winning color takes a turn.
         let flow = Store.preview(apps: ["claude": 80, "codex": 80, "gemini": 80], threshold: 40)
         func set(_ id: String, _ pct: Double) {
             flow.snapshots[id] = ProviderSnapshot(limits: Store.sampleLimits(id, pct: pct), fetchedAt: Date())
@@ -196,11 +196,32 @@ enum SelfTest {
         }
         let start = flow.urgent == nil
         set("claude", 20); let first = flow.urgent?.id
-        set("codex", 35); let second = flow.urgent?.id          // newer wins, even though Claude is lower
-        set("claude", 8); let third = flow.urgent               // Claude comes back only as red
-        set("gemini", 30); let fourth = flow.urgent?.id         // a new yellow doesn't hide a red
-        check("Pill follows the latest app to run low", start && first == "claude" && second == "codex"
-              && third?.id == "claude" && third?.level == .out && fourth == "claude")
+        set("codex", 35); let second = flow.urgent?.id          // news takes the pill at once
+        let turn = Store.pillTurnLength + 1
+        flow.rotatePill(now: Date().addingTimeInterval(turn)); let third = flow.urgent?.id        // then Claude's turn
+        flow.rotatePill(now: Date().addingTimeInterval(turn * 2)); let fourth = flow.urgent?.id   // and Codex again
+        flow.holdPill = true
+        flow.rotatePill(now: Date().addingTimeInterval(turn * 3)); let held = flow.urgent?.id      // not while TUM is open
+        flow.holdPill = false
+        check("Several low apps take turns on the pill, news first",
+              start && first == "claude" && second == "codex" && third == "claude" && fourth == "codex" && held == "codex")
+        set("claude", 8); let red = flow.urgent                 // red beats yellow at once
+        set("gemini", 30); let stillRed = flow.urgent?.id       // a new yellow waits behind red
+        flow.rotatePill(now: Date().addingTimeInterval(turn * 5)); let onlyRed = flow.urgent?.id
+        set("codex", 5); let newRed = flow.urgent?.id           // a second red is news
+        flow.rotatePill(now: Date().addingTimeInterval(turn * 7)); let redTurn = flow.urgent?.id
+        check("Red beats yellow, and red apps take turns too",
+              red?.id == "claude" && red?.level == .out && stillRed == "claude" && onlyRed == "claude"
+              && newRed == "codex" && redTurn == "claude")
+        flow.acknowledgeAlert()
+        check("Got it hands the pill to the next app", flow.urgent?.id == "codex")
+        // Usage monitoring is the default view; flipping tabs never changes the pill (AK).
+        let view = Store.preview(apps: ["claude": 20], threshold: 25, mode: .session)
+        view.mode = .weekly
+        let pillOnWeekly = view.pillState?.id
+        view.watch = .weekly
+        check("Tabs only change the view; Usage monitoring sets the default", pillOnWeekly == "claude"
+              && view.mode == .weekly && view.watch == .weekly)
         let oldLow = Store.preview(apps: ["claude": 50])
         oldLow.snapshots["claude"] = ProviderSnapshot(limits: Store.sampleLimits("claude", pct: 20), fetchedAt: Date().addingTimeInterval(-30 * 60))
         check("A low reading keeps the pill when a refresh fails", oldLow.urgent?.id == "claude")
@@ -457,7 +478,7 @@ enum SelfTest {
             ForEach([("All good", MorphMark(level: .ok, pct: nil, glyph: nil, symbol: "asterisk")),
                      ("Getting low", MorphMark(level: .low, pct: 24, glyph: yellow.glyph("claude"), symbol: "asterisk")),
                      ("Almost out", MorphMark(level: .out, pct: 8, glyph: yellow.glyph("claude"), symbol: "asterisk")),
-                     ("Use it before it resets", MorphMark(level: .use, pct: 85, glyph: yellow.glyph("claude"), symbol: "asterisk"))], id: \.0) { item in
+                     ("Worth using", MorphMark(level: .use, pct: 85, glyph: yellow.glyph("claude"), symbol: "asterisk"))], id: \.0) { item in
                 VStack(spacing: 12) {
                     item.1
                     Text(item.0).font(.callout).foregroundStyle(.secondary)

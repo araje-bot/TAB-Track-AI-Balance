@@ -267,6 +267,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func showQuick(for seconds: Double?) {
         autoHide?.cancel()
+        store.mode = store.watch   // the quick view shows the default view too (AK)
         quick.show()
         guard let s = seconds else { return }
         let w = DispatchWorkItem { [weak self] in self?.hideQuick() }

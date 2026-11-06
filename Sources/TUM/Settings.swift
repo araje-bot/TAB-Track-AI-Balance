@@ -96,7 +96,7 @@ struct SettingsView: View {
 
             Section("Nudges") {
                 SettingRow("Usage monitoring", subtitle: "Which limit TUM watches for you") {
-                    SegmentedChoice(selection: $store.mode, options: WatchMode.segments, label: "Usage monitoring")
+                    SegmentedChoice(selection: $store.watch, options: WatchMode.segments, label: "Usage monitoring")
                 }
                 SettingRow("Turn yellow at", subtitle: "When the icon turns yellow") {
                     SegmentedChoice(selection: $store.threshold, options: Thresholds.yellow, label: "Turn yellow at")

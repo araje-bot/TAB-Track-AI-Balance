@@ -41,7 +41,7 @@ extension Store {
         s.devFrozen = true
         s.detected = Detector.scan()
         for id in apps.keys where s.app(id) == nil { s.detected.append(s.sampleApp(id)) }
-        s.mode = mode
+        s.watch = mode
         s.threshold = threshold
         s.onboardingDone = onboardingDone
         s.connected = apps.keys.sorted()

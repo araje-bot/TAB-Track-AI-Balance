@@ -88,7 +88,20 @@ final class StatusItemController: NSObject {
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in self?.layout() }
             .store(in: &bag)
+        // Pill turns (AK): when several apps want the pill, it moves on every minute. Never while
+        // the popover or hover tip is open, so nothing changes under the person's eyes.
+        let turns = Timer(timeInterval: 5, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self = self else { return }
+                self.store.holdPill = self.popover.isShown || self.tip.isShown
+                self.store.rotatePill()
+            }
+        }
+        RunLoop.main.add(turns, forMode: .common)
+        turnTimer = turns
     }
+
+    private var turnTimer: Timer?
 
     private func configureButton() {
         guard let b = item.button else { return }
@@ -334,6 +347,10 @@ final class StatusItemController: NSObject {
         }
         guard let b = item.button else { return }
         Task { await store.refreshIfOld() }
+        // Tabs always start on the default view from "Usage monitoring" (AK); a pill can still
+        // open the tab it is about.
+        store.mode = store.watch
+        store.holdPill = true
         store.showTipTab()
         placeAnchor(in: b)
         popover.show(relativeTo: anchorView.bounds, of: anchorView, preferredEdge: .minY)
@@ -654,6 +671,8 @@ final class HoverTipController {
         panel.orderFrontRegardless()
         NSAnimationContext.runAnimationGroup { c in c.duration = 0.15; panel.animator().alphaValue = 1 }
     }
+
+    var isShown: Bool { panel.isVisible && panel.alphaValue > 0 }
 
     func hide() {
         guard panel.isVisible else { return }

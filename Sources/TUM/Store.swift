@@ -18,7 +18,12 @@ final class Store: ObservableObject {
     @Published var needsApproval: Set<String> = []
     @Published var tick = Date()
 
-    @Published var mode: WatchMode { didSet { defaults.set(mode.rawValue, forKey: "mode"); updateAlerts() } }
+    /// "Usage monitoring" (AK): the default view, chosen in onboarding or Settings. It is the limit
+    /// the pill watches, and every time TUM opens its tabs start here.
+    @Published var watch: WatchMode { didSet { defaults.set(watch.rawValue, forKey: "mode"); mode = watch; updateAlerts() } }
+    /// The tab the popover shows right now. Clicking a tab only changes this view, never the
+    /// default or the pill; opening TUM again starts on `watch`.
+    @Published var mode: WatchMode
     /// "Turn yellow at": an app at or under this % left turns the icon into the yellow pill.
     @Published var threshold: Double { didSet { defaults.set(threshold, forKey: "threshold"); updateAlerts() } }
     /// Red is automatic (AK): at or under 10% left the pill turns red. Not a setting.
@@ -109,7 +114,9 @@ final class Store: ObservableObject {
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
         // "Both" was removed (AK); it and anything unknown start on Session.
-        mode = WatchMode(rawValue: defaults.string(forKey: "mode") ?? "") ?? .session
+        let saved = WatchMode(rawValue: defaults.string(forKey: "mode") ?? "") ?? .session
+        watch = saved
+        mode = saved
         let t = defaults.double(forKey: "threshold")
         // Yellow always sits above red's 10% (the old 10% option moves to 20%).
         threshold = Thresholds.yellow.map(\.0).contains(t) ? t : (t > 0 && t <= 15 ? 20 : 25)
@@ -321,7 +328,7 @@ final class Store: ObservableObject {
 
     /// True when the person opened a connected app that is low, at most once every 30 minutes per app.
     func shouldHeadsUp(_ id: String) -> Bool {
-        guard headsUpOnOpen, !isStale(id), level(percent(id)) != .ok else { return false }
+        guard headsUpOnOpen, !isStale(id), level(watchPercent(id)) != .ok else { return false }
         // Every switch to a low app shows it, but not again within a minute (fast back-and-forth).
         if let t = lastHeadsUp[id], -t.timeIntervalSinceNow < 60 { return false }
         lastHeadsUp[id] = Date()
@@ -342,9 +349,15 @@ final class Store: ObservableObject {
         guard onboardingDone || interactive else { return }
         // Xcode previews never read sign-ins or call any service.
         if Self.isPreview { return }
-        // Sample data (Developer menu, previews, self-test) stays put until "Use real data".
-        if devFrozen { return }
-        if loading.contains(id) { return }
+        // Sample data (Developer menu, previews, self-test) stays put until "Use real data", or
+        // until the person clicks Sync on that app, which always asks for real numbers.
+        if devFrozen && !manual { return }
+        if loading.contains(id) {
+            // Sync while a check is already running waits for that answer instead of claiming a
+            // sync that never happened.
+            if manual { while loading.contains(id) { try? await Task.sleep(nanoseconds: 150_000_000) } }
+            return
+        }
 
         // Codex keeps its own usage in the session file. Use it when it is recent.
         if id == "codex", !manual, let local = CodexLocal.latest(hint: codexHint),
@@ -399,9 +412,11 @@ final class Store: ObservableObject {
 
     // MARK: Derived values
 
-    func visibleLimits(_ id: String) -> [UsageLimit] {
+    /// The limits shown for a tab (the popover's current one unless another is given).
+    func visibleLimits(_ id: String, for m: WatchMode? = nil) -> [UsageLimit] {
         let all = snapshots[id]?.limits ?? []
-        let match = all.filter { mode.matches($0) }
+        let tab = m ?? mode
+        let match = all.filter { tab.matches($0) }
         // No limit of this period (Claude has no monthly one): show the app's own limits, so
         // nothing goes blank and warnings never get lost.
         return match.isEmpty ? all : match
@@ -409,12 +424,18 @@ final class Store: ObservableObject {
 
     /// The limit that drives the pill. When both are shown, the session limit comes first;
     /// otherwise the one with the least left. Limits whose reset already passed are skipped.
-    func primaryLimit(_ id: String) -> UsageLimit? {
-        let live = visibleLimits(id).filter { !$0.isReset }
+    func primaryLimit(_ id: String, for m: WatchMode? = nil) -> UsageLimit? {
+        let live = visibleLimits(id, for: m).filter { !$0.isReset }
         return live.first { $0.kind == .short } ?? live.min { $0.percentLeft < $1.percentLeft }
     }
 
+    /// What the popover's current tab shows.
     func percent(_ id: String) -> Double? { primaryLimit(id)?.percentLeft }
+
+    /// The limit the pill, warnings and hover tip watch: always "Usage monitoring", whatever tab
+    /// is open, so flipping tabs never changes the menu bar.
+    func watchLimit(_ id: String) -> UsageLimit? { primaryLimit(id, for: watch) }
+    func watchPercent(_ id: String) -> Double? { watchLimit(id)?.percentLeft }
 
     /// True for apps with one plan limit and no session or weekly split (Cursor: monthly).
     func hasOnlyOneLimit(_ id: String) -> Bool {
@@ -447,14 +468,14 @@ final class Store: ObservableObject {
     struct TipRow: Identifiable { let id: String; let name: String; let kind: String; let limitKind: LimitKind?; let pct: Double?; let level: Level; let reset: Date? }
     var tipRows: [TipRow] {
         sortedConnected.prefix(4).map { id in
-            let l = isStale(id) ? nil : primaryLimit(id)
+            let l = isStale(id) ? nil : watchLimit(id)
             return TipRow(id: id, name: name(id), kind: l.map { self.kindName($0) } ?? (readsUsage(id) ? "Syncing" : "No data yet"), limitKind: l?.kind,
                           pct: l?.percentLeft, level: level(l?.percentLeft), reset: l?.resetsAt)
         }
     }
 
     var pillHelp: String {
-        guard let u = urgent, let l = primaryLimit(u.id) else { return "TUM: all good" }
+        guard let u = urgent, let l = watchLimit(u.id) else { return "TUM: all good" }
         let kind: String
         switch l.kind {
         case .short: kind = "Session"
@@ -485,7 +506,7 @@ final class Store: ObservableObject {
     /// True when the last reading can still drive the pill: not too old, and its limit hasn't reset.
     func canAlert(_ id: String) -> Bool {
         guard let s = snapshots[id], -s.fetchedAt.timeIntervalSinceNow <= alertKeepsFor else { return false }
-        if let reset = primaryLimit(id)?.resetsAt, reset < Date() { return false }
+        if let reset = watchLimit(id)?.resetsAt, reset < Date() { return false }
         return true
     }
 
@@ -500,11 +521,12 @@ final class Store: ObservableObject {
     /// Forgets every "Got it" on warnings (Developer menu previews, Start fresh).
     func clearAcknowledged() { objectWillChange.send(); acknowledged = [:] }
 
-    /// "Got it" on the yellow or red line.
+    /// "Got it" on the yellow or red line. The next app in line takes the pill right away.
     func acknowledgeAlert() {
         guard let u = urgent else { return }
         objectWillChange.send()
         acknowledged[u.id] = u.level
+        rotatePill()
     }
 
     /// Records new crossings. Several apps that cross in the same update share one moment; then
@@ -513,25 +535,92 @@ final class Store: ObservableObject {
         let now = Date()
         for id in Array(alertSince.keys) where !connected.contains(id) { alertSince[id] = nil }
         for id in connected {
-            let l: Level = canAlert(id) ? level(percent(id)) : .ok
+            let l: Level = canAlert(id) ? level(watchPercent(id)) : .ok
             if l == .ok { alertSince[id] = nil; acknowledged[id] = nil }
-            else if alertSince[id]?.level != l { alertSince[id] = (l, now) }
+            else if alertSince[id]?.level != l { alertSince[id] = (l, now); lastTurn[id] = nil }
             if let a = acknowledged[id], a != l { acknowledged[id] = nil }
         }
+        rotatePill(now: now)
     }
 
-    /// The app the menu bar pill shows (AK): the latest app to cross into yellow, so each new app
-    /// that runs low takes the pill and the person notices something changed. An app that already
-    /// alerted only comes back when it turns red. Red always wins over yellow; among red apps, the
-    /// latest to turn red. The limit that counts follows Usage monitoring (Session, Weekly, Both).
+    /// The warning on the pill right now, if the pill is yellow or red.
     var urgent: (id: String, pct: Double, level: Level)? {
+        guard let p = pillState, p.level != .use else { return nil }
+        return p
+    }
+
+    // MARK: Pill turns (AK): several apps, one pill
+
+    /// How long one app keeps the pill before the next one in its color gets a turn.
+    static let pillTurnLength: TimeInterval = 60
+    /// Whose turn it is, and since when. Kept in memory only.
+    private(set) var pillTurn: String?
+    private var turnStarted: Date?
+    /// When each app last had the pill. Cleared when it crosses into a new level, so it counts as news.
+    private var lastTurn: [String: Date] = [:]
+    /// True while the person is looking at TUM (popover or hover tip): the pill never changes
+    /// under their eyes, except for news.
+    var holdPill = false
+
+    /// Every app that wants the pill, in the one color that wins, in turn order. The rules:
+    /// 1. Red beats yellow beats green. Colors never mix, so lower ones wait.
+    /// 2. News first: an app that just crossed into its level (newest first) or a new green tip
+    ///    (soonest reset first) goes to the front.
+    /// 3. Then everyone takes turns, longest since their last turn first, so every app is seen.
+    ///    Ties go to the app with less left.
+    /// "Got it" takes an app out until it reaches a new level.
+    var pillCandidates: [(id: String, pct: Double, level: Level)] {
         let live = alertSince.compactMap { id, a -> (id: String, pct: Double, level: Level, at: Date)? in
-            guard connected.contains(id), canAlert(id), let p = percent(id) else { return nil }
+            guard connected.contains(id), canAlert(id), let p = watchPercent(id) else { return nil }
             return (id, p, level(p), a.at)
         }.filter { $0.level != .ok && acknowledged[$0.id] != $0.level }
-        let pool = live.contains { $0.level == .out } ? live.filter { $0.level == .out } : live
-        guard let pick = pool.max(by: { $0.at != $1.at ? $0.at < $1.at : $0.pct > $1.pct }) else { return nil }
-        return (pick.id, pick.pct, pick.level)
+        if !live.isEmpty {
+            let tier = live.contains { $0.level == .out } ? live.filter { $0.level == .out } : live
+            return tier.sorted { a, b in
+                let ta = lastTurn[a.id], tb = lastTurn[b.id]
+                if (ta == nil) != (tb == nil) { return ta == nil }
+                if let ta, let tb, ta != tb { return ta < tb }
+                if ta == nil && a.at != b.at { return a.at > b.at }
+                return a.pct < b.pct
+            }.map { ($0.id, $0.pct, $0.level) }
+        }
+        // Green tips come soonest reset first already.
+        let tips = useItTips.filter(isNew).enumerated()
+        return tips.sorted { a, b in
+            let ta = lastTurn[a.element.id], tb = lastTurn[b.element.id]
+            if (ta == nil) != (tb == nil) { return ta == nil }
+            if let ta, let tb, ta != tb { return ta < tb }
+            return a.offset < b.offset
+        }.map { ($0.element.id, $0.element.pct, Level.use) }
+    }
+
+    /// What the menu bar shows: whoever's turn it is.
+    var pillState: (id: String, pct: Double, level: Level)? {
+        let c = pillCandidates
+        if let t = pillTurn, let hit = c.first(where: { $0.id == t }) { return hit }
+        return c.first
+    }
+
+    /// Moves the pill on when it's time. Called on every update and every few seconds by the menu bar.
+    /// News takes the pill at once; otherwise the turn lasts `pillTurnLength`, and never ends while
+    /// the person is looking at TUM.
+    func rotatePill(now: Date = Date()) {
+        let c = pillCandidates
+        let ids = Set(c.map(\.id))
+        for id in Array(lastTurn.keys) where !ids.contains(id) { lastTurn[id] = nil }
+        guard let first = c.first else {
+            if pillTurn != nil { pillTurn = nil; turnStarted = nil }
+            return
+        }
+        let current = c.first { $0.id == pillTurn }
+        let news = first.id != pillTurn && lastTurn[first.id] == nil
+        let turnOver = !holdPill && c.count > 1 && now.timeIntervalSince(turnStarted ?? .distantPast) >= Self.pillTurnLength
+        guard current == nil || news || turnOver else { return }
+        let next = (current == nil || news) ? first : (c.first { $0.id != pillTurn } ?? first)
+        objectWillChange.send()
+        pillTurn = next.id
+        turnStarted = now
+        lastTurn[next.id] = now
     }
 
     // MARK: Use it before it resets (AK: TUM's differentiator)
@@ -585,9 +674,9 @@ final class Store: ObservableObject {
     /// Clicking the green pill opens TUM on the tab the tip is about (weekly, monthly), so the
     /// number in the pill is the one you see (AK).
     func showTipTab() {
-        if let t = newUseItTip, urgent == nil {
+        if let p = pillState, p.level == .use, let t = useItTips.first(where: { $0.id == p.id }) {
             if mode != t.mode { mode = t.mode }
-        } else if let u = urgent, !tabApps.contains(u.id), let l = primaryLimit(u.id) {
+        } else if let u = urgent, !tabApps.contains(u.id), let l = watchLimit(u.id) {
             // A warning for an app that isn't on this tab opens the tab where it is.
             mode = WatchMode.period(of: l)
         }
@@ -613,15 +702,12 @@ final class Store: ObservableObject {
         var seen = useItSeen
         for t in tips { seen[t.id] = t.resetsAt.timeIntervalSince1970 }
         useItSeen = seen
+        rotatePill()
     }
 
     /// What the menu bar shows. Yellow and red warnings always win. Otherwise a new "use it"
     /// recommendation shows as the green pill until TUM is opened.
-    var pillState: (id: String, pct: Double, level: Level)? {
-        if let u = urgent { return u }
-        if let t = newUseItTip { return (t.id, t.pct, .use) }
-        return nil
-    }
+
 
     /// The positive status line: short, plain, a suggestion (AK). One app says what's left and
     /// when it resets; several are listed by name.
@@ -643,14 +729,14 @@ final class Store: ObservableObject {
 
     /// Lowest first. Only for the hover tip, which is about what needs attention.
     var sortedConnected: [String] {
-        connected.sorted { (percent($0) ?? 999) < (percent($1) ?? 999) }
+        connected.sorted { (watchPercent($0) ?? 999) < (watchPercent($1) ?? 999) }
     }
 
     /// The order tiles appear in the popover and quick view: the order the person connected them.
     /// It never changes with Session, Weekly or Both, so icons stay in place (AK).
     var displayOrder: [String] { connected }
 
-    func soonestReset(_ id: String) -> Date? { primaryLimit(id)?.resetsAt }
+    func soonestReset(_ id: String) -> Date? { watchLimit(id)?.resetsAt }
 
     func updatedText(_ id: String) -> String {
         if updating.contains(id) { return "Syncing…" }
@@ -672,6 +758,8 @@ final class Store: ObservableObject {
         let wait = 0.8 + start.timeIntervalSinceNow
         if wait > 0 { try? await Task.sleep(nanoseconds: UInt64(wait * 1_000_000_000)) }
         updating.remove(id)
+        // Only a real new answer says "Just now". A failed sync keeps its error showing instead.
+        guard let fetched = snapshots[id]?.fetchedAt, fetched >= start.addingTimeInterval(-1), errors[id] == nil else { return }
         // "Connected · Just now" stays long enough to read, then the row goes back to just
         // "Connected" (AK: less clutter).
         justUpdated.insert(id)

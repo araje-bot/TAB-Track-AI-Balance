@@ -710,7 +710,7 @@ private struct NudgesStep: View {
             Card(padding: 6) {
                 VStack(spacing: 0) {
                     settingRow("Usage monitoring", subtitle: "Which limit TUM watches for you") {
-                        SegmentedChoice(selection: $store.mode, options: WatchMode.segments, label: "Usage monitoring")
+                        SegmentedChoice(selection: $store.watch, options: WatchMode.segments, label: "Usage monitoring")
                     }
                     Divider().padding(.horizontal, 6)
                     settingRow("See all apps", subtitle: "Keys that show every app at once") {

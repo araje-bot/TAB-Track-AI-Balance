@@ -279,51 +279,64 @@ struct DetailView: View {
                         }
                         // The sync line sits apart from the numbers, below a divider (AK).
                         Divider()
-                        HStack(spacing: 10) {
+                        HStack(alignment: .firstTextBaseline, spacing: 10) {
                             Image(systemName: "clock.arrow.circlepath").foregroundStyle(.secondary).frame(width: 16)
-                            Text(store.updatedText(id)).font(.callout).foregroundStyle(.secondary)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(store.updatedText(id)).font(.callout).foregroundStyle(.secondary)
+                                // Why the last Sync didn't bring new numbers, so it never fails silently.
+                                if let err = store.errors[id], store.snapshots[id] != nil {
+                                    Text(err).font(.callout).foregroundStyle(Palette.amberText)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                }
+                            }
                         }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
 
+            // Remove on the left, Sync on the right, the same size (AK).
             HStack(spacing: 10) {
-                if !needsConnect && reads {
-                    Button { Task { await store.syncNow(id) } } label: { ButtonText("Sync").frame(maxWidth: .infinity) }
-                        .disabled(store.updating.contains(id))
-                        .secondaryButton()
-                }
                 // This screen is about one app, so Remove is a plain button here, in red for the
-                // destructive role (HIG Buttons), the same style as "Remove all" in Settings.
-                Button(role: .destructive) { store.disconnect(id); back() } label: { ButtonText("Remove") }
+                // destructive role (HIG Buttons).
+                Button(role: .destructive) { store.disconnect(id); back() } label: { ButtonText("Remove").frame(width: 96) }
                     .secondaryButton()
                     .help("Remove \(store.name(id))")
+                Spacer(minLength: 0)
+                if !needsConnect && reads {
+                    Button { Task { await store.syncNow(id) } } label: {
+                        ButtonText(store.updating.contains(id) ? "Syncing…" : "Sync").frame(width: 96)
+                    }
+                    .disabled(store.updating.contains(id))
+                    .secondaryButton()
+                    .help("Get the latest numbers from \(store.name(id))")
+                }
             }
         }
         .padding(16)
         .fixedSize(horizontal: false, vertical: true)
     }
 
-    /// One limit: what's left, in the same color as the water circle, and when it resets on its
-    /// own line below, so a long reset time never gets squeezed (AK). The tab (or the "Monthly
+    /// One limit: what's left, in the same color as the water circle, and when it resets at the
+    /// right end of the same line (AK). The tab (or the "Monthly
     /// limit" label) already says which period this is, so the line doesn't repeat it, unless
     /// the app has no limit of this tab's period and shows its own instead.
     private func limitRow(_ l: UsageLimit, stale: Bool) -> some View {
         let showPeriod = !store.hasOnlyOneLimit(id) && !store.mode.matches(l)
         let amount = "\(l.isEstimate ? "~" : "")\(Int(l.percentLeft.rounded()))% left" + (showPeriod ? " " + store.periodPhrase(l) : "")
         let level: Level = (stale || l.isReset) ? .ok : store.level(l.percentLeft)
-        return VStack(alignment: .leading, spacing: 2) {
-            HStack(spacing: 10) {
-                LimitIcon(kind: l.kind, size: 14).foregroundStyle(.secondary).frame(width: 16)
-                Text(l.isReset ? "Reset, checking…" : amount)
-                    .font(.title3.weight(.semibold)).monospacedDigit()
-                    .foregroundStyle(Palette.text(level))
-            }
+        // What's left on the left, when it resets on the right, on one line (AK).
+        return HStack(alignment: .firstTextBaseline, spacing: 10) {
+            LimitIcon(kind: l.kind, size: 14).foregroundStyle(.secondary).frame(width: 16)
+            Text(l.isReset ? "Reset, checking…" : amount)
+                .font(.title3.weight(.semibold)).monospacedDigit()
+                .foregroundStyle(Palette.text(level))
+                .fixedSize()
+            Spacer(minLength: 8)
             if let r = l.resetsAt, !l.isReset {
                 Text("Resets " + Format.when(r)).font(.callout).foregroundStyle(.secondary)
+                    .multilineTextAlignment(.trailing)
                     .fixedSize(horizontal: false, vertical: true)
-                    .padding(.leading, 26)
             }
         }
         .accessibilityElement(children: .combine)

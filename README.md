@@ -2,9 +2,11 @@
 
 A macOS menu bar app that shows how much AI usage you have left in Claude, Codex, Cursor, Grok Bot, GitHub Copilot, Grok, Gemini and Zed. The icon turns into a yellow or red pill when an app runs low, and tells you when a limit resets soon with plenty left.
 
-![The menu bar icon in its four states. All good, getting low (yellow), almost out (red), and use it before it resets (green).](docs/images/pills.png)
+![The menu bar icon in its four states. All good, getting low (yellow), almost out (red), and worth using (green).](docs/images/pills.png)
 
-When everything is fine, you see a small round icon. Yellow means an app is getting low. Red means it is almost out. Green means a limit resets soon and you still have plenty left, so now is a good time to use it.
+When everything is fine, you see a small round icon. Yellow means an app is getting low. Red means it is almost out. Green means worth using. An app you've barely used has plenty left and resets soon, so use it before that goes to waste.
+
+When several apps need you at once, red comes first, then yellow, then green. Apps of the same color take turns, about a minute each, so you see every one. Hover over the icon to see them all at once.
 
 ## What TUM supports today
 
@@ -36,7 +38,7 @@ TUM opens with a short welcome and shows the AI apps it found. It needs macOS 13
 
 ![The nudge settings](docs/images/nudge.png)
 
-**Click the icon any time.** Each circle fills up to match what is left. Session, Weekly and Monthly tabs show each limit. Click an app for more.
+**Click the icon any time.** Each circle fills up to match what is left. It opens on the view you picked during setup (Session, Weekly or Monthly), and the tabs switch it. Click an app for more, and Sync to get its latest numbers.
 
 <p>
   <img src="docs/images/popover.png" alt="The menu bar popover showing Claude at 24% and Codex at 88%" width="320">
