@@ -50,7 +50,10 @@ enum Pill {
     /// "Use it before it resets" (AK): a glossy green with the same dark ink as amber.
     static let green = Color(hex: 0x30B058)
     static let greenTop = Color(hex: 0x4CC172)
-    static let greenLiquid = Color(hex: 0x5EDB82)
+    /// A deeper green than the pill (AK): the green pill shows when lots is left, so this water
+    /// fills most of the circle, and the white logo on it needs to read. White on it is 4.4:1
+    /// (the old #5EDB82 was 1.8:1), and it still stands out from the dark circle (3.9:1).
+    static let greenLiquid = Color(hex: 0x218A45)
     /// Healthy water in the usage circles, matched to the amber and red liquids.
     static let blueLiquid = Color(hex: 0x4FA3FF)
 
