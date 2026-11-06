@@ -54,7 +54,9 @@ extension View {
     /// The one main action in a view: a prominent Liquid Glass capsule in the accent color.
     @ViewBuilder
     func primaryButton() -> some View {
-        if #available(macOS 26.0, *) {
+        if ControlMetrics.capture {
+            self.buttonStyle(CaptureButtonStyle(prominent: true, circle: false))
+        } else if #available(macOS 26.0, *) {
             self.buttonStyle(.glassProminent).buttonBorderShape(.capsule).controlSize(ControlMetrics.size)
         } else {
             self.buttonStyle(.borderedProminent).controlSize(ControlMetrics.size)
@@ -64,7 +66,9 @@ extension View {
     /// Every other text button: a Liquid Glass capsule.
     @ViewBuilder
     func secondaryButton() -> some View {
-        if #available(macOS 26.0, *) {
+        if ControlMetrics.capture {
+            self.buttonStyle(CaptureButtonStyle(prominent: false, circle: false))
+        } else if #available(macOS 26.0, *) {
             self.buttonStyle(.glass).buttonBorderShape(.capsule).controlSize(ControlMetrics.size)
         } else {
             self.buttonStyle(.bordered).controlSize(ControlMetrics.size)
@@ -75,7 +79,9 @@ extension View {
     /// the text buttons. `prominent` tints it with the accent color (the Figma Connect button).
     @ViewBuilder
     func iconButton(prominent: Bool = false) -> some View {
-        if #available(macOS 26.0, *) {
+        if ControlMetrics.capture {
+            self.labelStyle(SquareIcon()).buttonStyle(CaptureButtonStyle(prominent: prominent, circle: true))
+        } else if #available(macOS 26.0, *) {
             if prominent {
                 self.labelStyle(SquareIcon()).buttonStyle(.glassProminent).buttonBorderShape(.circle).controlSize(ControlMetrics.size)
             } else {
@@ -99,6 +105,40 @@ enum ControlMetrics {
     /// The narrowest a text button gets, so short labels ("OK", "Remove") don't look cramped
     /// and paired buttons line up. The system adds the same side padding to every button.
     static let minTextWidth: CGFloat = 64
+    /// Picture taking only (`--snapshots`): offscreen captures can't draw Liquid Glass buttons
+    /// (labels come out black on dark), so they get a plain look-alike instead. Never set in the app.
+    static var capture = false
+}
+
+/// The look-alike for snapshots: the same 28pt capsule or circle, accent fill for the main action,
+/// a light system fill for the rest, and readable labels in both modes.
+struct CaptureButtonStyle: ButtonStyle {
+    let prominent: Bool
+    let circle: Bool
+
+    func makeBody(configuration: Configuration) -> some View {
+        CaptureButtonBody(configuration: configuration, prominent: prominent, circle: circle)
+    }
+
+    private struct CaptureButtonBody: View {
+        let configuration: Configuration
+        let prominent: Bool
+        let circle: Bool
+        @Environment(\.isEnabled) private var enabled
+
+        var body: some View {
+            let fill: AnyShapeStyle = prominent ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(Color.primary.opacity(0.1))
+            configuration.label
+                .font(.body)
+                .foregroundStyle(prominent ? AnyShapeStyle(Color.white) : AnyShapeStyle(Color.primary))
+                .padding(.horizontal, circle ? 0 : 14)
+                .frame(minWidth: ControlMetrics.round, minHeight: ControlMetrics.round)
+                .background {
+                    if circle { Circle().fill(fill) } else { Capsule().fill(fill) }
+                }
+                .opacity(enabled ? 1 : 0.4)
+        }
+    }
 }
 
 /// Icon-only label in a fixed square box, so every glass circle is the same size and round.

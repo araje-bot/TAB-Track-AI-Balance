@@ -33,7 +33,7 @@ struct OnboardingView: View {
         case 1: return ("Welcome to TUM", "Know how much AI you have left, in every app you use.")
         case 2: return ("How TUM works", "Three steps, then it stays quietly in your menu bar.")
         case 3: return ("Which AI apps do you use?", store.connected.isEmpty ? "Connect at least one to continue." : "Connect the ones you want TUM to watch.")
-        default: return ("When should TUM nudge you?", "The icon changes. Nothing pops up.")
+        default: return ("When should TUM nudge you?", "The icon turns yellow when an app runs low. Nothing pops up.")
         }
     }
 
@@ -350,18 +350,25 @@ private struct AppsStep: View {
     @Binding var connectTarget: AIApp?
 
     var body: some View {
-        // Centered when the apps fit; scrolls only when there are more than fit.
-        ViewThatFits(in: .vertical) {
-            grid
-            ScrollView { grid }
+        // Centered when the apps fit; scrolls only when there are more than fit. Snapshots can't
+        // draw a scroll view, so pictures show the top of the list instead.
+        if ControlMetrics.capture {
+            // The overlay takes only the space offered, so the long list never pushes the title up.
+            Color.clear.overlay(alignment: .top) { grid }.clipped()
+        } else {
+            ViewThatFits(in: .vertical) {
+                grid
+                ScrollView { grid }
+            }
         }
     }
 
-    /// Two groups (AK): apps TUM can show now, and the rest as "Coming soon", dimmed so
-    /// nobody tries to click them.
+    /// Two groups (AK): every AI app found on this Mac, ready to connect (apps TUM can't read yet
+    /// come last and connect without numbers, so the person decides), and "Coming soon", the image,
+    /// video and music apps TUM plans to support.
     private var grid: some View {
-        let ready = store.detected.filter(\.supported)
-        let later = store.detected.filter { !$0.supported }
+        let ready = store.detected.filter(\.supported) + store.detected.filter { !$0.supported }
+        let later = store.comingSoon
         // 28pt between the two groups, so they read as separate sections (AK).
         return VStack(alignment: .leading, spacing: 28) {
             if !ready.isEmpty {
@@ -451,7 +458,7 @@ struct AppCard: View {
         .help(app.hint)
         .contextMenu {
             if isConnected {
-                AppMenuItems(name: app.name, refresh: refresh, remove: remove)
+                AppMenuItems(name: app.name, refresh: syncAction, remove: remove)
             } else if app.canConnect {
                 Button("Connect \(app.name)", action: connect)
             }
@@ -463,15 +470,22 @@ struct AppCard: View {
         if isConnected { return store.errors[app.id] ?? store.connectedText(app.id) }
         if app.usesCursorSignIn && !CursorAuth.signedIn { return app.hint }
         if app.usesGitHubSignIn && !GitHubAuth.signedIn && !CopilotProvider().hasLocalSignIn() { return app.hint }
+        // Apps TUM can't read yet say so up front, so connecting one is an informed choice.
+        if !app.supported { return app.hint }
         return app.canConnect ? app.category : app.hint
     }
 
-    private func refresh() { Task { await store.updateNow(app.id) } }
+    private func refresh() { Task { await store.syncNow(app.id) } }
     private func remove() { withAnimation { store.disconnect(app.id) } }
+    /// Nil for apps TUM can't read yet, so their menu has no Sync.
+    private var syncAction: (() -> Void)? {
+        guard store.readsUsage(app.id) else { return nil }
+        return refresh
+    }
 
     @ViewBuilder private var trailing: some View {
         if isConnected {
-            AppMenu(name: app.name, refresh: refresh, remove: remove)
+            AppMenu(name: app.name, refresh: syncAction, remove: remove)
         } else if app.canConnect {
             ConnectButton(name: app.name, action: connect)
         }
@@ -491,12 +505,13 @@ struct ConnectSheet: View {
     @State private var work: Task<Void, Never>?
 
     /// Apps whose saved sign-in is protected by the macOS Keychain, so macOS asks once: Claude,
-    /// Codex when its sign-in is there instead of in a file, and Copilot through the GitHub CLI.
+    /// Codex when its sign-in is there instead of in a file, Copilot through the GitHub CLI, and Zed.
     private var macMayAsk: Bool {
         switch app.id {
         case "claude": return true
         case "codex": return !FileManager.default.fileExists(atPath: homeURL(".codex/auth.json").path)
         case "copilot": return Keychain.exists(service: "gh:github.com")
+        case "zed": return true
         default: return false
         }
     }
@@ -515,9 +530,16 @@ struct ConnectSheet: View {
             Text("Connect \(app.name)").font(.title.bold()).foregroundStyle(.primary)
             Card {
                 VStack(spacing: 0) {
-                    InfoRow(symbol: "gauge.with.dots.needle.50percent", text: "See how much you have left")
-                    Divider()
-                    InfoRow(symbol: "calendar", text: "See when it resets")
+                    if app.supported {
+                        InfoRow(symbol: "gauge.with.dots.needle.50percent", text: "See how much you have left")
+                        Divider()
+                        InfoRow(symbol: "calendar", text: "See when it resets")
+                    } else {
+                        // Nothing to read yet, so the sheet says plainly what connecting does (AK).
+                        InfoRow(symbol: "square.grid.2x2", text: "Keep it in your list with your other apps")
+                        Divider()
+                        InfoRow(symbol: "clock.badge.checkmark", text: "Its numbers show up once TUM supports it")
+                    }
                     Divider()
                     InfoRow(symbol: "eye.slash", text: "TUM never saves or sends your prompts or work")
                     Divider()
@@ -565,6 +587,8 @@ struct ConnectSheet: View {
             } else if macMayAsk {
                 note("key.fill", .secondary, "macOS will ask once",
                      "Choose Always Allow so TUM can check \(app.name) without asking again.")
+            } else if !app.supported {
+                Text("Nothing to sign in to. TUM can't read \(app.name)'s usage yet.").font(TextStyle.caption).foregroundStyle(.secondary)
             } else {
                 Text("Uses the \(app.name) account you're already signed in to").font(TextStyle.caption).foregroundStyle(.secondary)
             }
@@ -587,7 +611,9 @@ struct ConnectSheet: View {
                 .padding(6)
             }
         case .connected:
-            note("checkmark.circle.fill", Palette.green, "You're all set", "\(app.name) now shows in your menu bar.")
+            note("checkmark.circle.fill", Palette.green, "You're all set", app.supported
+                 ? "\(app.name) now shows in your menu bar."
+                 : "\(app.name) is in your list. Its numbers come once TUM supports it.")
         case .failed:
             note("exclamationmark.circle.fill", Palette.redText, "Couldn't connect", reason)
         }
@@ -652,68 +678,61 @@ private struct NudgesStep: View {
     @ObservedObject var store: Store
     @State private var bump = false
 
-    /// The three icon states, with the "Getting low" card highlighted in yellow because that's the
-    /// one the settings below control. It previews the chosen value live (HIG: show the effect of a
-    /// setting right away), and an arrow leads from the settings up to it (AK).
+    /// Only the yellow pill is explained here (AK: the red one confused people, and the setting
+    /// below only moves the yellow point). The first card shows the change itself, white icon to
+    /// yellow pill, with "Turn yellow at" right under it in the same card, so the link is plain.
+    /// The pill and its line preview the chosen value live (HIG: show the effect of a setting right
+    /// away). The other settings sit in their own card below.
     var body: some View {
         let t = Int(store.threshold)
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 12) {
-                stateCard("All good", "Above \(t)% left") { TankMark(size: 34, color: .primary) }
-                stateCard("Getting low", "At \(t)% or less", highlight: true) {
-                    PillView(glyph: store.glyph(store.demoID), symbol: store.symbol(store.demoID), pct: store.threshold, level: .low, scale: 1.6)
-                }
-                stateCard("Almost out", "At \(Int(store.redAt))% or less") {
-                    PillView(glyph: store.glyph(store.demoID), symbol: store.symbol(store.demoID), pct: Double(store.redAt), level: .out, scale: 1.6)
+        VStack(spacing: 12) {
+            Card(padding: 6) {
+                VStack(spacing: 0) {
+                    HStack(spacing: 8) {
+                        state("All good", Text("Above \(t)% left")) { TankMark(size: 34, color: .primary) }
+                        Image(systemName: "arrow.right")
+                            .font(.title2.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                            .accessibilityHidden(true)
+                        state("Turns yellow", Text("At ") + Text("\(t)%").foregroundColor(Pill.amberText).bold() + Text(" or less")) {
+                            PillView(glyph: store.glyph(store.demoID), symbol: store.symbol(store.demoID), pct: store.threshold, level: .low, scale: 1.6)
+                                .scaleEffect(bump ? 1.08 : 1)
+                        }
+                    }
+                    .padding(.vertical, 14)
+                    Divider().padding(.horizontal, 6)
+                    settingRow("Turn yellow at", subtitle: "How much is left when it turns yellow") {
+                        SegmentedChoice(selection: $store.threshold, options: Thresholds.yellow, label: "Turn yellow at")
+                    }
                 }
             }
-            // One SF Symbol, so the head and the line are a single connected shape (AK). The
-            // `.title` size makes it tall enough to give the two blocks room.
-            Image(systemName: "arrow.up")
-                .font(.title.weight(.semibold))
-                .foregroundStyle(Color.yellow)
-                .frame(maxWidth: .infinity)
-            .accessibilityHidden(true)
             // The rows bring their own 10pt form inset, so the card needs less padding of its own.
             Card(padding: 6) {
                 VStack(spacing: 0) {
-                    settingRow("Turn yellow at", subtitle: "When the icon turns yellow") {
-                        SegmentedChoice(selection: $store.threshold, options: Thresholds.yellow, label: "Turn yellow at")
-                    }
-                    Divider()
                     settingRow("Usage monitoring", subtitle: "Which limit TUM watches for you") {
                         SegmentedChoice(selection: $store.mode, options: WatchMode.segments, label: "Usage monitoring")
                     }
-                    Divider()
+                    Divider().padding(.horizontal, 6)
                     settingRow("See all apps", subtitle: "Keys that show every app at once") {
                         SegmentedChoice(selection: $store.shortcutChoice, options: ShortcutChoice.segments, label: "Shortcut")
                     }
                 }
             }
         }
-        // A short pulse on the yellow card whenever the threshold changes, so the link is felt.
+        // A short pulse on the pill whenever the threshold changes, so the link is felt.
         .onChange(of: store.threshold) { _ in
             withAnimation(Motion.standard) { bump = true }
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) { withAnimation(Motion.standard) { bump = false } }
         }
     }
 
-    private func stateCard<V: View>(_ label: String, _ detail: String, highlight: Bool = false, @ViewBuilder _ v: () -> V) -> some View {
-        Card(padding: 20) {
-            VStack(spacing: 8) {
-                v().frame(height: 40)
-                Text(label).font(.title3.weight(.semibold))
-                Text(detail).font(.subheadline).foregroundStyle(.secondary)
-            }
-            .frame(maxWidth: .infinity)
+    private func state<V: View>(_ label: String, _ detail: Text, @ViewBuilder _ v: () -> V) -> some View {
+        VStack(spacing: 8) {
+            v().frame(height: 40)
+            Text(label).font(.title3.weight(.semibold))
+            detail.font(.subheadline).foregroundStyle(.secondary).monospacedDigit()
         }
-        .overlay {
-            if highlight {
-                RoundedRectangle(cornerRadius: Radius.card, style: .continuous)
-                    .strokeBorder(Color.yellow, lineWidth: 2)
-            }
-        }
-        .scaleEffect(highlight && bump ? 1.03 : 1)
+        .frame(maxWidth: .infinity)
         .accessibilityElement(children: .combine)
     }
 

@@ -77,7 +77,9 @@ struct AIApp: Identifiable, Hashable {
     var credentialFound: Bool    // a sign-in exists on this Mac
     var hint: String             // what to do when it can't connect yet
     var source: String           // where the numbers come from
-    var canConnect: Bool { supported && credentialFound }
+    /// Apps TUM can't read yet can still be connected (AK): they show in the list with no
+    /// numbers until support arrives. Supported apps need their sign-in on this Mac.
+    var canConnect: Bool { supported ? credentialFound : true }
     /// Cursor and Grok Bot connect through TUM's own Cursor sign-in, in the browser.
     var usesCursorSignIn: Bool { id == "cursor" || id == "grokbot" }
     /// Copilot signs in with GitHub (a one-time code) when nothing is set up on this Mac yet.

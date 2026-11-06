@@ -63,6 +63,20 @@ enum SelfTest {
             "quota_snapshots": ["premium_interactions": ["percent_remaining": 35.5, "entitlement": 300] as [String: Any]] as [String: Any]]
         check("Copilot premium requests 35.5% left", abs((CopilotProvider.parse(copilotReply)?.first?.percentLeft ?? 0) - 35.5) < 0.01)
         check("GitHub CLI token found in hosts.yml", CopilotProvider.ghToken(fromHostsYAML: "github.com:\n    user: me\n    oauth_token: fake-token-abc\nother.com:\n    oauth_token: no\n") == "fake-token-abc")
+        let zedFree: [String: Any] = ["plan": ["plan_v3": "zed_free", "has_overdue_invoices": false,
+            "subscription_period": ["started_at": "2030-01-01T00:00:00Z", "ended_at": "2030-02-01T00:00:00Z"] as [String: Any],
+            "usage": ["edit_predictions": ["used": 1500, "limit": 2000] as [String: Any]] as [String: Any]] as [String: Any]]
+        let zedPro: [String: Any] = ["plan": ["plan_v3": "zed_pro",
+            "usage": ["edit_predictions": ["used": 90, "limit": "unlimited"] as [String: Any]] as [String: Any]] as [String: Any]]
+        let zedFreeLeft = ZedProvider.parse(zedFree)?.first
+        check("Zed edit predictions 25% left, resets with the billing period",
+              abs((zedFreeLeft?.percentLeft ?? 0) - 25) < 0.01 && zedFreeLeft?.resetsAt == J.date("2030-02-01T00:00:00Z")
+              && ZedProvider.parse(zedPro)?.first?.percentLeft == 100)
+        check("Zed sign-in header is \"<user id> <token>\" and refuses odd values",
+              ZedProvider.header(user: "12345", token: "fake-token") == "12345 fake-token"
+              && ZedProvider.header(user: "me@x", token: "fake") == nil && ZedProvider.header(user: "1", token: "a b\nc") == nil)
+        check("Zed reply without its usage is rejected", ZedProvider.parse(["plan": ["plan_v3": "zed_free"] as [String: Any]] as [String: Any]) == nil
+              && ZedProvider.parse(["plan": ["usage": ["edit_predictions": ["used": 1, "limit": 0] as [String: Any]] as [String: Any]] as [String: Any]] as [String: Any]) == nil)
         check("Unknown reply is rejected, not shown as 0%", CursorProvider.parse(["something": 1] as [String: Any]) == nil && GrokProvider.parse([String: Any]()) == nil && GrokBotProvider.parse("x") == nil)
 
         // Codex's local session file.
@@ -236,8 +250,32 @@ enum SelfTest {
                                                                label: "Usage monitoring", switchesView: true).frame(width: 300)).fittingSize
         check("Tabs fill their width", abs(tabsSize.width - 300) < 1 && tabsSize.height >= 28)
         // Card notes never wrap or cut off: 24 characters, 18 when the Connect button shares the row.
-        check("App notes fit on one line", Catalog.all.allSatisfy { $0.hint.count <= 24 }
+        check("App notes fit on one line", (Catalog.all + Catalog.planned).allSatisfy { $0.hint.count <= 24 }
               && Catalog.all.filter { $0.id == "cursor" || $0.id == "grokbot" }.allSatisfy { $0.hint.count <= 18 })
+        // Apps TUM can't read yet can still be connected; they wait with no numbers (AK).
+        let noReader = Store.preview(apps: [:])
+        let perplexity = AIApp(id: "perplexity", name: "Perplexity", category: "Search", appURL: nil, supported: false,
+                               credentialFound: false, hint: "No usage data yet", source: "")
+        noReader.connect("perplexity")
+        check("Apps TUM can't read yet can be connected", perplexity.canConnect && noReader.connected.contains("perplexity")
+              && noReader.connectedText("perplexity") == "Connected · No data yet" && noReader.pillState == nil)
+        // Coming soon: each app once, with a real logo; one found on this Mac moves to
+        // Ready to connect instead of showing twice.
+        let plannedIDs = Catalog.planned.map(\.id)
+        let soonStore = Store.preview(apps: [:])
+        soonStore.detected.append(AIApp(id: "manus", name: "Manus", category: "Agents", appURL: nil, supported: false,
+                                        credentialFound: false, hint: "No usage data yet", source: ""))
+        check("Coming soon lists each app once, with its logo, and nothing shut down",
+              !plannedIDs.isEmpty && Set(plannedIDs).count == plannedIDs.count
+              && Catalog.planned.allSatisfy { BrandLogos.all[$0.id] != nil } && !plannedIDs.contains("sora")
+              && Catalog.all.allSatisfy { !plannedIDs.contains($0.id) }
+              && !soonStore.comingSoon.contains { $0.id == "manus" } && soonStore.comingSoon.contains { $0.id == "suno" }
+              && !plannedIDs.contains("midjourney"))
+        let fb = Feedback.issueURL("  Pill stays yellow + won't clear\nafter reset  ")?.absoluteString ?? ""
+        check("Feedback opens a filled-in GitHub issue on TUM's repo, never an empty one",
+              fb.hasPrefix(Feedback.repo + "/issues/new?title=Feedback") && fb.contains("%2B") && fb.contains("body=")
+              && Feedback.issueURL("   \n ") == nil
+              && (Feedback.issueURL(String(repeating: "🙂", count: 2000))?.absoluteString.utf8.count ?? .max) <= Feedback.maxURLLength)
         check("ChatGPT is never listed on its own", !Detector.scan().contains { $0.name.localizedCaseInsensitiveContains("ChatGPT") })
         check("Shortcuts are two keys, \u{2318}T first", ShortcutChoice.allCases.allSatisfy { $0.keys.count == 2 } && ShortcutChoice.allCases.first == .commandT)
         // One button size everywhere: icon buttons (Connect, back) match text buttons in height.
@@ -265,6 +303,9 @@ enum SelfTest {
     /// `TUM --snapshots <folder>` saves pictures of the main screens so the design can be
     /// checked against Figma without a person taking screenshots.
     static func snapshots(to dir: String) {
+        // Glass buttons can't be drawn offscreen, so pictures use their plain look-alike.
+        ControlMetrics.capture = true
+        defer { ControlMetrics.capture = false }
         _ = NSApplication.shared
         NSApp.setActivationPolicy(.prohibited)
         let folder = URL(fileURLWithPath: dir)
@@ -313,7 +354,7 @@ enum SelfTest {
             render(Image(nsImage: g).resizable().frame(width: 64, height: 64).background(Color.black), "logo-mark")
         }
         for step in 1...4 { shot(OnboardingView(store: store, finish: {}, startStep: step), NSSize(width: 800, height: OnboardingView.height), "onboarding-\(step)") }
-        if let app = store.detected.first(where: { $0.canConnect }) ?? store.detected.first {
+        if let app = store.detected.first(where: { $0.supported && $0.canConnect }) ?? store.detected.first {
             shot(ConnectSheet(store: store, app: app, done: {}), NSSize(width: 480, height: 600), "connect")
         }
         shot(PopoverView(store: store, openSettings: {}, openAddMore: {}), NSSize(width: 340, height: 470), "popover")
@@ -355,7 +396,11 @@ enum SelfTest {
         pending.snapshots["claude"] = nil
         pending.needsApproval = ["claude"]
         shot(DetailView(store: pending, id: "claude", back: {}), NSSize(width: 340, height: 440), "dev-detail-connect")
+        let waiting = Store.preview(apps: ["claude": 62])
+        waiting.connect("perplexity")
+        shot(DetailView(store: waiting, id: "perplexity", back: {}), NSSize(width: 340, height: 440), "dev-detail-no-data")
         shot(SettingsView(store: yellow), NSSize(width: 580, height: 660), "dev-settings")
+        shot(FeedbackPage(back: {}), NSSize(width: 340, height: 330), "dev-feedback")
         let wide = Store.preview(apps: ["claude": 100, "codex": 100, "copilot": 100, "cursor": 100])
         shot(HoverTip(store: wide), NSSize(width: 360, height: 200), "dev-hover-tip-wide")
         shot(HoverTip(store: yellow), NSSize(width: 380, height: 160), "dev-hover-tip")
@@ -380,9 +425,20 @@ enum SelfTest {
         }.padding(12), NSSize(width: 140, height: 140), "dev-menubar-states")
         // App cards outside the scroll view, so the Connect button and the check can be compared.
         let cards = Store.preview(apps: ["claude": 62], onboardingDone: false)
+        let other = AIApp(id: "perplexity", name: "Perplexity", category: "Search", appURL: nil, supported: false,
+                          credentialFound: false, hint: "No usage data yet", source: "")
+        cards.connect("lovable")
+        let lovable = AIApp(id: "lovable", name: "Lovable", category: "Build apps", appURL: nil, supported: false,
+                            credentialFound: false, hint: "No usage data yet", source: "")
         shot(VStack(spacing: 10) {
-            ForEach(cards.detected.prefix(3)) { app in AppCard(store: cards, app: app, connect: {}) }
-        }.padding(12).frame(width: 280), NSSize(width: 280, height: 240), "dev-app-cards")
+            ForEach(Array(cards.detected.prefix(3)) + [other, lovable]) { app in AppCard(store: cards, app: app, connect: {}) }
+            ComingSoonCard(store: cards, app: Catalog.plannedApps[0])
+        }.padding(12).frame(width: 280), NSSize(width: 280, height: 470), "dev-app-cards")
+        // Every Coming soon card, outside a scroll view.
+        let soon = Catalog.plannedApps
+        shot(LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: 3), spacing: 10) {
+            ForEach(soon) { app in ComingSoonCard(store: cards, app: app) }
+        }.padding(12).frame(width: 776), NSSize(width: 776, height: CGFloat((soon.count + 2) / 3) * 78 + 24), "dev-coming-soon")
         // The same key screens in Light Mode.
         shot(OnboardingView(store: Store.preview(apps: ["claude": 62], onboardingDone: false), finish: {}, startStep: 4),
              NSSize(width: 800, height: OnboardingView.height), "light-onboarding-4", light: true)
@@ -390,13 +446,13 @@ enum SelfTest {
         shot(VStack(spacing: 10) {
             ForEach(cards.detected.prefix(3)) { app in AppCard(store: cards, app: app, connect: {}) }
         }.padding(12).frame(width: 280), NSSize(width: 280, height: 240), "light-app-cards", light: true)
-        // Pictures for the README, in Light Mode so every label reads correctly.
+        // Pictures for the README, all in Dark Mode (AK).
         let tour = Store.preview(apps: ["claude": 62, "codex": 80, "cursor": 70, "grokbot": 55], onboardingDone: false)
-        shot(OnboardingView(store: tour, finish: {}, startStep: 1), NSSize(width: 800, height: OnboardingView.height), "readme-welcome", light: true)
+        shot(OnboardingView(store: tour, finish: {}, startStep: 1), NSSize(width: 800, height: OnboardingView.height), "readme-welcome")
         shot(OnboardingView(store: tour, finish: {}, startStep: 3), NSSize(width: 800, height: OnboardingView.height), "readme-apps")
-        shot(OnboardingView(store: yellow, finish: {}, startStep: 4), NSSize(width: 800, height: OnboardingView.height), "readme-nudge", light: true)
-        shot(PopoverView(store: yellow, openSettings: {}, openAddMore: {}), NSSize(width: 340, height: 360), "readme-popover", light: true)
-        shot(DetailView(store: yellow, id: "claude", back: {}), NSSize(width: 340, height: 400), "readme-detail", light: true)
+        shot(OnboardingView(store: yellow, finish: {}, startStep: 4), NSSize(width: 800, height: OnboardingView.height), "readme-nudge")
+        shot(PopoverView(store: yellow, openSettings: {}, openAddMore: {}), NSSize(width: 340, height: 360), "readme-popover")
+        shot(DetailView(store: yellow, id: "claude", back: {}), NSSize(width: 340, height: 400), "readme-detail")
         shot(HStack(alignment: .top, spacing: 36) {
             ForEach([("All good", MorphMark(level: .ok, pct: nil, glyph: nil, symbol: "asterisk")),
                      ("Getting low", MorphMark(level: .low, pct: 24, glyph: yellow.glyph("claude"), symbol: "asterisk")),
@@ -407,7 +463,7 @@ enum SelfTest {
                     Text(item.0).font(.callout).foregroundStyle(.secondary)
                 }
             }
-        }.padding(24), NSSize(width: 640, height: 110), "readme-pills", light: true)
+        }.padding(24), NSSize(width: 640, height: 110), "readme-pills")
         #endif
     }
 

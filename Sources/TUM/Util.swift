@@ -1,5 +1,6 @@
 import Foundation
 import SwiftUI
+import AppKit
 
 func homeURL(_ relative: String) -> URL {
     FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(relative)
@@ -21,8 +22,8 @@ enum Palette {
     static let green = Color.green
     static let accent = Color.accentColor
     static let neutralBlue = Color.accentColor
-    static let amberText = Color.orange
-    static let redText = Color.red
+    static let amberText = Pill.amberText
+    static let redText = Pill.redText
 
     /// The water in a usage circle: blue when fine, and the Figma pill's yellow and red when low.
     static func water(_ l: Level) -> Color {
@@ -31,7 +32,8 @@ enum Palette {
         switch l { case .ok: return Pill.blueLiquid; case .low: return Pill.amberLiquid; case .out: return Pill.redLiquid; case .use: return Pill.greenLiquid }
     }
     static func text(_ l: Level) -> Color {
-        switch l { case .ok: return .primary; case .low: return .orange; case .out: return .red; case .use: return .green }
+        // The same hues as the water in the circles (AK), so a number and its circle always match.
+        switch l { case .ok: return .primary; case .low: return Pill.amberText; case .out: return Pill.redText; case .use: return Pill.greenText }
     }
 }
 
@@ -50,6 +52,23 @@ enum Pill {
     static let greenLiquid = Color(hex: 0x5EDB82)
     /// Healthy water in the usage circles, matched to the amber and red liquids.
     static let blueLiquid = Color(hex: 0x4FA3FF)
+
+    /// Text in the water colors (AK), readable on TUM's cards in both modes (WCAG AA, 4.5:1 or
+    /// more). Dark Mode uses the liquids themselves (red a touch lighter to reach 4.5:1 on a
+    /// card); Light Mode uses deeper shades of the same hues.
+    static let amberText = adaptive(light: 0x845F00, dark: 0xFFB800)
+    static let redText = adaptive(light: 0xB3282E, dark: 0xFF7B7F)
+    static let greenText = adaptive(light: 0x1B7536, dark: 0x5EDB82)
+
+    private static func adaptive(light: UInt32, dark: UInt32) -> Color {
+        func ns(_ h: UInt32) -> NSColor {
+            NSColor(srgbRed: CGFloat((h >> 16) & 0xff) / 255, green: CGFloat((h >> 8) & 0xff) / 255,
+                    blue: CGFloat(h & 0xff) / 255, alpha: 1)
+        }
+        return Color(nsColor: NSColor(name: nil) { a in
+            a.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua ? ns(dark) : ns(light)
+        })
+    }
 
     static func colors(_ l: Level) -> (top: Color, base: Color, liquid: Color, ink: Color) {
         switch l {

@@ -17,6 +17,7 @@ xcuserdata/
 
 # Private notes and secrets (never commit these)
 HANDOFF.md
+CLAUDE.md
 .env
 *.p12
 *.cer

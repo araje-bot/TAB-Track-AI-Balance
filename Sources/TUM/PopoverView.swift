@@ -11,14 +11,15 @@ struct PopoverView: View {
     @State private var detailID: String? = nil
     /// The detail screen's own height, measured, so the popover can glide to it.
     @State private var detailHeight: CGFloat = 420
+    @State private var feedback = false
 
     /// Grows with the number of apps instead of always being tall.
     private var height: CGFloat {
         if store.connected.isEmpty { return 300 }
         let rows = CGFloat((max(store.tabApps.count, 1) + 2) / 3)
-        // The status line holds a "Got it" button, so its text wraps sooner.
-        let alertLine: CGFloat = store.summary.isAlert ? (store.summary.text.count > 30 ? 72 : 52) : 0
-        return min(470, 166 + alertLine + rows * 118)
+        // The status line's text shares its row with a small check button, so long lines wrap.
+        let alertLine: CGFloat = store.summary.isAlert ? (store.summary.text.count > 36 ? 72 : 52) : 0
+        return min(494, 190 + alertLine + rows * 118)
     }
 
     /// Opening an app pushes its detail in from the right and Back slides it out again, the
@@ -30,7 +31,14 @@ struct PopoverView: View {
 
     var body: some View {
         ZStack {
-            if let id = detailID, store.connected.contains(id) {
+            if feedback {
+                FeedbackPage(back: { withAnimation(Motion.morph) { feedback = false } })
+                    .background(GeometryReader { g in
+                        Color.clear.preference(key: DetailHeightKey.self, value: g.size.height)
+                    })
+                    .transition(.asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity),
+                                            removal: .move(edge: .trailing).combined(with: .opacity)))
+            } else if let id = detailID, store.connected.contains(id) {
                 DetailView(store: store, id: id, back: { open(nil) })
                     .background(GeometryReader { g in
                         Color.clear.preference(key: DetailHeightKey.self, value: g.size.height)
@@ -46,7 +54,7 @@ struct PopoverView: View {
         // The app list has a set height; one app's detail sizes to its own content.
         .onPreferenceChange(DetailHeightKey.self) { h in if h > 0 { detailHeight = h } }
         // Both screens have a real height, so the popover resizes smoothly between them.
-        .frame(width: 340, height: detailID == nil ? height : detailHeight, alignment: .top)
+        .frame(width: 340, height: detailID == nil && !feedback ? height : detailHeight, alignment: .top)
         .clipped()
         .animation(Motion.morph, value: height)
         .animation(Motion.morph, value: detailHeight)
@@ -118,6 +126,9 @@ struct PopoverView: View {
                 Button(action: openAddMore) { ButtonText("Add more", systemImage: "plus") }
                     .secondaryButton()
             }
+
+            // Feedback goes to TUM's GitHub Issues (AK).
+            FeedbackLink { withAnimation(Motion.morph) { feedback = true } }
         }
         .padding(16)
     }
@@ -128,24 +139,20 @@ struct StatusLine: View {
 
     var body: some View {
         let s = store.summary
-        HStack(spacing: 10) {
-            Label {
-                // Up to two lines, so a recommendation is never cut off.
-                Text(s.text).font(.body.weight(.medium)).lineLimit(3).truncationMode(.tail)
-                    .fixedSize(horizontal: false, vertical: true)
-            } icon: {
-                Image(systemName: s.symbol).foregroundStyle(s.color)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .accessibilityElement(children: .combine)
+        // Text only, no leading icon, so the message gets the whole width (AK). The pill and the
+        // water circle below already carry the color.
+        HStack(spacing: 12) {
+            Text(s.text).font(.body.weight(.medium)).lineLimit(3).truncationMode(.tail)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
             if let d = s.dismiss {
-                // "Got it" clears the line and the pill goes back to the white icon (AK). A warning
-                // comes back if the app gets lower (yellow to red); a tip at the next reset.
-                Button {
+                // A blue check clears the line and the pill goes back to the white icon (AK). A
+                // warning comes back if the app gets lower (yellow to red); a tip at the next reset.
+                Button("Got it", systemImage: "checkmark") {
                     withAnimation(Motion.morph) { d == .tip ? store.markUseItSeen() : store.acknowledgeAlert() }
-                } label: { Text("Got it") }   // plain label: as narrow as the words (AK)
-                    .primaryButton()            // the one blue action in this line
-                    .fixedSize()
+                }
+                .iconButton(prominent: true)
+                .help("Got it")
             }
         }
         .contentCard()
@@ -163,7 +170,10 @@ struct TileCell: View {
         VStack(spacing: 5) {
             LiquidTile(pct: pct, level: lvl, glyph: store.glyph(id), symbol: store.symbol(id), size: 56, stale: stale && store.snapshots[id] != nil)
             Text(store.name(id)).font(.callout.weight(.medium)).foregroundStyle(.secondary).lineLimit(1)
-            if store.needsApproval.contains(id) {
+            if !store.readsUsage(id) {
+                Text("No data yet").font(.callout).foregroundStyle(.secondary)
+                    .help("TUM can't read \(store.name(id))'s usage yet")
+            } else if store.needsApproval.contains(id) {
                 Text("Connect").font(.callout.weight(.semibold)).foregroundStyle(.tint)
                     .help("One more click to finish connecting")
             } else if store.snapshots[id] == nil {
@@ -207,6 +217,7 @@ struct DetailView: View {
         let pct = store.percent(id)
         let stale = store.isStale(id)
         let needsConnect = store.needsApproval.contains(id)
+        let reads = store.readsUsage(id)
         VStack(spacing: 16) {
             HStack(spacing: 10) {
                 // Icon-only, as Liquid Glass back buttons are. VoiceOver says "All apps".
@@ -220,7 +231,18 @@ struct DetailView: View {
             LiquidTile(pct: pct, level: stale ? .ok : store.level(pct), glyph: store.glyph(id), symbol: store.symbol(id),
                        size: 88, stale: stale && store.snapshots[id] != nil)
 
-            if needsConnect {
+            if !reads {
+                // Connected by choice, with nothing TUM can read yet (AK).
+                Card {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("No usage data yet").font(.headline)
+                        Text("TUM can't read \(store.name(id))'s usage yet. Its numbers show here once it does.")
+                            .font(.callout).foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            } else if needsConnect {
                 Card {
                     VStack(alignment: .leading, spacing: 10) {
                         Text("Finish connecting \(store.name(id))").font(.headline)
@@ -246,34 +268,29 @@ struct DetailView: View {
                     SegmentedChoice(selection: $store.mode, options: WatchMode.segments, label: "Usage monitoring", switchesView: true)
                 }
                 Card {
-                    VStack(alignment: .leading, spacing: 10) {
+                    VStack(alignment: .leading, spacing: 12) {
                         if let err = store.errors[id], store.snapshots[id] == nil {
                             Label(err, systemImage: "exclamationmark.circle").font(.body)
                                 .fixedSize(horizontal: false, vertical: true)
                         } else {
                             ForEach(store.hasOnlyOneLimit(id) ? (store.snapshots[id]?.limits ?? []) : store.visibleLimits(id)) { l in
-                                HStack(spacing: 10) {
-                                    LimitIcon(kind: l.kind, size: 14).frame(width: 16)
-                                    Text(l.isReset ? "Reset, checking…" : "\(l.isEstimate ? "~" : "")\(Int(l.percentLeft.rounded()))% left \(store.periodPhrase(l))")
-                                        .font(.body.weight(.medium))
-                                    Spacer(minLength: 8)
-                                    if let r = l.resetsAt, !l.isReset {
-                                        Text("Resets " + Format.when(r)).font(.callout).foregroundStyle(.secondary)
-                                    }
-                                }
+                                limitRow(l, stale: stale)
                             }
                         }
+                        // The sync line sits apart from the numbers, below a divider (AK).
+                        Divider()
                         HStack(spacing: 10) {
-                            Image(systemName: "clock.arrow.circlepath").frame(width: 16)
+                            Image(systemName: "clock.arrow.circlepath").foregroundStyle(.secondary).frame(width: 16)
                             Text(store.updatedText(id)).font(.callout).foregroundStyle(.secondary)
                         }
                     }
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
 
             HStack(spacing: 10) {
-                if !needsConnect {
-                    Button { Task { await store.updateNow(id) } } label: { ButtonText("Update now").frame(maxWidth: .infinity) }
+                if !needsConnect && reads {
+                    Button { Task { await store.syncNow(id) } } label: { ButtonText("Sync").frame(maxWidth: .infinity) }
                         .disabled(store.updating.contains(id))
                         .secondaryButton()
                 }
@@ -286,5 +303,29 @@ struct DetailView: View {
         }
         .padding(16)
         .fixedSize(horizontal: false, vertical: true)
+    }
+
+    /// One limit: what's left, in the same color as the water circle, and when it resets on its
+    /// own line below, so a long reset time never gets squeezed (AK). The tab (or the "Monthly
+    /// limit" label) already says which period this is, so the line doesn't repeat it, unless
+    /// the app has no limit of this tab's period and shows its own instead.
+    private func limitRow(_ l: UsageLimit, stale: Bool) -> some View {
+        let showPeriod = !store.hasOnlyOneLimit(id) && !store.mode.matches(l)
+        let amount = "\(l.isEstimate ? "~" : "")\(Int(l.percentLeft.rounded()))% left" + (showPeriod ? " " + store.periodPhrase(l) : "")
+        let level: Level = (stale || l.isReset) ? .ok : store.level(l.percentLeft)
+        return VStack(alignment: .leading, spacing: 2) {
+            HStack(spacing: 10) {
+                LimitIcon(kind: l.kind, size: 14).foregroundStyle(.secondary).frame(width: 16)
+                Text(l.isReset ? "Reset, checking…" : amount)
+                    .font(.title3.weight(.semibold)).monospacedDigit()
+                    .foregroundStyle(Palette.text(level))
+            }
+            if let r = l.resetsAt, !l.isReset {
+                Text("Resets " + Format.when(r)).font(.callout).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.leading, 26)
+            }
+        }
+        .accessibilityElement(children: .combine)
     }
 }

@@ -10,7 +10,7 @@ final class Store: ObservableObject {
     @Published var snapshots: [String: ProviderSnapshot] = [:] { didSet { updateAlerts() } }
     @Published var errors: [String: String] = [:]
     @Published var loading: Set<String> = []
-    /// Apps the person asked to update by hand. Their status reads "Updating…" until it finishes.
+    /// Apps the person asked to update by hand. Their status reads "Syncing…" until it finishes.
     @Published var updating: Set<String> = []
     /// Apps that just finished a manual update. Their status shows when, for a few seconds only.
     @Published var justUpdated: Set<String> = []
@@ -73,7 +73,7 @@ final class Store: ObservableObject {
     private var backoff: [String: Date] = [:]
     /// Failed checks in a row, per app. Each failure doubles the wait before the next automatic
     /// check (1, 2, 4 ... 60 minutes), so a broken sign-in never calls a service every minute
-    /// (security review M3). A success or a manual "Update now" starts over.
+    /// (security review M3). A success or a manual "Sync" starts over.
     private var failures: [String: Int] = [:]
 
     private func noteFailure(_ id: String) {
@@ -113,8 +113,10 @@ final class Store: ObservableObject {
         let t = defaults.double(forKey: "threshold")
         // Yellow always sits above red's 10% (the old 10% option moves to 20%).
         threshold = Thresholds.yellow.map(\.0).contains(t) ? t : (t > 0 && t <= 15 ? 20 : 25)
-        // Drop anything from older versions that TUM can no longer read.
-        connected = (defaults.stringArray(forKey: "connected") ?? []).filter { Providers.all[$0] != nil }
+        // Keep apps TUM knows, with or without numbers. Anything else from older versions goes.
+        connected = (defaults.stringArray(forKey: "connected") ?? []).filter { id in
+            Providers.all[id] != nil || Catalog.entry(id) != nil
+        }
         let seen = Self.onboardingSeenForThisCopy()
         onboardingDone = seen
         if defaults === UserDefaults.standard { Keychain.silentReadsAllowed = seen }
@@ -136,7 +138,19 @@ final class Store: ObservableObject {
     }
 
     func app(_ id: String) -> AIApp? { detected.first { $0.id == id } }
-    func name(_ id: String) -> String { app(id)?.name ?? Catalog.entry(id)?.name ?? id }
+    func name(_ id: String) -> String {
+        app(id)?.name ?? Catalog.entry(id)?.name ?? id
+    }
+
+    /// Coming soon: the planned apps that aren't on this Mac (installed ones are ready to connect).
+    var comingSoon: [AIApp] {
+        let found = Set(detected.map(\.id))
+        return Catalog.plannedApps.filter { !found.contains($0.id) }
+    }
+
+    /// True when TUM can read this app's usage. Other apps can still be connected (AK); they
+    /// show in the list with no numbers until support arrives.
+    func readsUsage(_ id: String) -> Bool { Providers.all[id] != nil }
     func symbol(_ id: String) -> String { Catalog.entry(id)?.symbol ?? "sparkle" }
     func source(_ id: String) -> String { Catalog.entry(id)?.source ?? "" }
 
@@ -168,7 +182,6 @@ final class Store: ObservableObject {
     }
 
     func connect(_ id: String) {
-        guard Providers.all[id] != nil else { return }
         if !connected.contains(id) { connected.append(id) }
         errors[id] = nil
         Task { await refresh(id) }
@@ -179,7 +192,11 @@ final class Store: ObservableObject {
     @Published var githubCode: GitHubAuth.DeviceCode?
 
     func connectAndCheck(_ id: String) async -> String? {
-        guard Providers.all[id] != nil else { return "TUM can't show this app's usage yet." }
+        // Nothing to sign in to or check: it joins the list and waits for support.
+        guard Providers.all[id] != nil else {
+            if !connected.contains(id) { connected.append(id) }
+            return nil
+        }
         var signedInNow = false
         // Cursor and Grok Bot need TUM's own Cursor sign-in first (opens the browser).
         if (id == "cursor" || id == "grokbot") && !CursorAuth.signedIn {
@@ -431,7 +448,7 @@ final class Store: ObservableObject {
     var tipRows: [TipRow] {
         sortedConnected.prefix(4).map { id in
             let l = isStale(id) ? nil : primaryLimit(id)
-            return TipRow(id: id, name: name(id), kind: l.map { self.kindName($0) } ?? "Updating", limitKind: l?.kind,
+            return TipRow(id: id, name: name(id), kind: l.map { self.kindName($0) } ?? (readsUsage(id) ? "Syncing" : "No data yet"), limitKind: l?.kind,
                           pct: l?.percentLeft, level: level(l?.percentLeft), reset: l?.resetsAt)
         }
     }
@@ -636,15 +653,15 @@ final class Store: ObservableObject {
     func soonestReset(_ id: String) -> Date? { primaryLimit(id)?.resetsAt }
 
     func updatedText(_ id: String) -> String {
-        if updating.contains(id) { return "Updating…" }
-        guard let s = snapshots[id] else { return "Not updated yet" }
-        return "Updated " + Format.ago(s.fetchedAt)
+        if updating.contains(id) { return "Syncing…" }
+        guard let s = snapshots[id] else { return "Not synced yet" }
+        return "Synced " + Format.ago(s.fetchedAt)
     }
 
-    /// "Update now" from the More menu or the detail screen. A manual check skips the local Codex
-    /// shortcut and any wait from an earlier busy reply, and "Updating…" stays up for at least
+    /// "Sync" from the More menu or the detail screen. A manual check skips the local Codex
+    /// shortcut and any wait from an earlier busy reply, and "Syncing…" stays up for at least
     /// 0.8s so the person sees that something happened, even when the answer is instant.
-    func updateNow(_ id: String) async {
+    func syncNow(_ id: String) async {
         guard !updating.contains(id) else { return }
         updating.insert(id)
         let start = Date()
@@ -663,13 +680,14 @@ final class Store: ObservableObject {
     }
 
     /// A connected app's one-line status. Normally just "Connected" (AK: less clutter). Right
-    /// after "Update now" it says "Connected · Updating…", then "Connected · Just now" for a few
-    /// seconds, then goes back to "Connected".
+    /// after "Sync" it says "Connected · Syncing…", then "Connected · Just now" for a few
+    /// seconds, then goes back to "Connected". Apps TUM can't read yet say so.
     func connectedText(_ id: String) -> String {
-        if updating.contains(id) { return "Connected · Updating…" }
+        if !readsUsage(id) { return "Connected · No data yet" }
+        if updating.contains(id) { return "Connected · Syncing…" }
         if justUpdated.contains(id), let s = snapshots[id] {
             let ago = Format.ago(s.fetchedAt)
-            return "Connected · " + (ago == "just now" ? "Just now" : "Updated " + ago)
+            return "Connected · " + (ago == "just now" ? "Just now" : "Synced " + ago)
         }
         return "Connected"
     }

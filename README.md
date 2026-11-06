@@ -1,10 +1,16 @@
 # TUM · Token Utilization Monitor
 
-A macOS menu bar app that shows how much AI usage you have left in Claude, Codex, Cursor, Grok Bot, GitHub Copilot, Grok and Gemini. The icon turns into a yellow or red pill when an app runs low, and tells you when a limit resets soon with plenty left.
+A macOS menu bar app that shows how much AI usage you have left in Claude, Codex, Cursor, Grok Bot, GitHub Copilot, Grok, Gemini and Zed. The icon turns into a yellow or red pill when an app runs low, and tells you when a limit resets soon with plenty left.
 
 ![The menu bar icon in its four states. All good, getting low (yellow), almost out (red), and use it before it resets (green).](docs/images/pills.png)
 
 When everything is fine, you see a small round icon. Yellow means an app is getting low. Red means it is almost out. Green means a limit resets soon and you still have plenty left, so now is a good time to use it.
+
+## What TUM supports today
+
+- **Native Mac apps only, for now.** TUM works with AI apps installed on your Mac, like the Claude, Codex and Cursor desktop apps and their command-line tools.
+- **Web apps are coming.** AI tools you mostly use in a browser, like ElevenLabs, Higgsfield and Suno, are planned. TUM lists them under Coming soon.
+- **Windows is planned.** TUM runs on macOS today. A Windows version is on the way.
 
 ## Install
 
@@ -22,7 +28,7 @@ TUM opens with a short welcome and shows the AI apps it found. It needs macOS 13
 
 ![The welcome screen](docs/images/welcome.png)
 
-**Pick your AI apps.** TUM finds the ones on your Mac. Tap the plug to connect one. Connected apps say so in green.
+**Pick your AI apps.** TUM finds the ones on your Mac. Tap the plug to connect one. Connected apps say so in green. You can also connect apps TUM can't read yet, and their numbers show up once support arrives.
 
 ![The list of AI apps, with Claude, Codex, Cursor and Grok Bot connected](docs/images/apps.png)
 
@@ -58,9 +64,13 @@ TUM only asks for usage numbers. It does not save your prompts, chats, files or 
 ## Good to know
 
 - TUM never asks for your password, and it does not need keyboard, screen or accessibility permissions.
-- macOS may ask once about your Keychain when you connect Claude. Choose Always Allow.
+- macOS may ask once about your Keychain when you connect Claude or Zed. Choose Always Allow.
 - The installer downloads one exact release and checks it against a fingerprint written into the script. A different file is deleted, not installed.
 - All of TUM's code is in this repository, so anyone can read exactly what it does.
+
+## Feedback
+
+Click **Any issues? Let us know** at the bottom of TUM. It opens a new issue here on GitHub with your note filled in, so you can check it before you send it. You need a free GitHub account.
 
 ## License
 

@@ -10,6 +10,7 @@ struct SettingsView: View {
     @State private var connectTarget: AIApp? = nil
     @State private var openAtLogin = SMAppService.mainApp.status == .enabled
     @State private var copied = false
+    @State private var feedback = false
     var showWelcome: () -> Void = {}
 
     /// The title sits in the window's own title bar (see `AppDelegate.openSettings`), as in
@@ -20,6 +21,7 @@ struct SettingsView: View {
         .sheet(item: $connectTarget) { app in
             ConnectSheet(store: store, app: app, done: { connectTarget = nil })
         }
+        .sheet(isPresented: $feedback) { FeedbackSheet(done: { feedback = false }) }
         .onAppear { store.scan() }
     }
 
@@ -57,7 +59,8 @@ struct SettingsView: View {
             }
 
             Section {
-                let ready = store.detected.filter(\.supported)
+                // Every app found on this Mac can be connected (AK). Apps TUM can't read yet come last.
+                let ready = store.detected.filter(\.supported) + store.detected.filter { !$0.supported }
                 if ready.isEmpty {
                     Text("No AI apps found yet. Install one and TUM will find it.")
                         .foregroundStyle(.secondary)
@@ -71,9 +74,9 @@ struct SettingsView: View {
                 }
             }
 
-            let later = store.detected.filter { !$0.supported }
+            let later = store.comingSoon
             if !later.isEmpty {
-                // Apps TUM can't show yet: dimmed, grayed-out icons, nothing to click (AK).
+                // Image, video and music apps TUM plans to support: nothing to click yet (AK).
                 Section("Coming soon") {
                     ForEach(later) { app in
                         HStack(spacing: 12) {
@@ -156,6 +159,11 @@ struct SettingsView: View {
                     Spacer()
                     Button { NSApp.terminate(nil) } label: { ButtonText("Quit TUM") }.secondaryButton()
                 }
+                HStack {
+                    Spacer()
+                    FeedbackLink { feedback = true }
+                    Spacer()
+                }
             }
         }
         .formStyle(.grouped)
@@ -173,7 +181,7 @@ struct SettingsView: View {
                 // One more step to finish: just Connect, never Allow and Remove side by side (AK).
                 ConnectButton(name: app.name) { connectTarget = app }
             } else if store.connected.contains(app.id) {
-                AppMenu(name: app.name, refresh: { refresh(app) }, remove: { remove(app) })
+                AppMenu(name: app.name, refresh: store.readsUsage(app.id) ? { refresh(app) } : nil, remove: { remove(app) })
             } else if app.canConnect {
                 ConnectButton(name: app.name) { connectTarget = app }
             }
@@ -182,7 +190,7 @@ struct SettingsView: View {
         // Right-click offers the same actions as the More button (HIG Context menus).
         .contextMenu {
             if store.connected.contains(app.id) {
-                AppMenuItems(name: app.name, refresh: { refresh(app) }, remove: { remove(app) })
+                AppMenuItems(name: app.name, refresh: store.readsUsage(app.id) ? { refresh(app) } : nil, remove: { remove(app) })
             } else if app.canConnect {
                 Button("Connect \(app.name)") { connectTarget = app }
             }
@@ -196,7 +204,7 @@ struct SettingsView: View {
         return path.hasPrefix("/Applications/") || path.hasPrefix(home + "/Applications/")
     }
 
-    private func refresh(_ app: AIApp) { Task { await store.updateNow(app.id) } }
+    private func refresh(_ app: AIApp) { Task { await store.syncNow(app.id) } }
     private func remove(_ app: AIApp) { withAnimation { store.disconnect(app.id) } }
 
     private func detail(_ app: AIApp) -> String {
@@ -206,6 +214,7 @@ struct SettingsView: View {
         }
         if app.usesCursorSignIn && !CursorAuth.signedIn { return app.hint }
         if app.usesGitHubSignIn && !GitHubAuth.signedIn && !CopilotProvider().hasLocalSignIn() { return app.hint }
+        if !app.supported { return app.hint }
         return app.canConnect ? app.source : app.hint
     }
 }

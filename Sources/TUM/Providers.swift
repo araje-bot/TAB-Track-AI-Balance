@@ -92,12 +92,61 @@ enum Keychain {
         return (status, out as? Data)
     }
 
-    /// Checks an item exists without reading its secret. Never prompts.
-    static func exists(service: String) -> Bool {
-        let q: [String: Any] = [kSecClass as String: kSecClassGenericPassword,
-                                kSecAttrService as String: service,
+    /// Reads an internet password (the kind Zed keeps) with its account name. Same rules as `read`:
+    /// silent unless the person just clicked, and nothing before onboarding is done.
+    static func readInternet(server: String, interactive: Bool) -> (status: OSStatus, account: String?, data: Data?) {
+        if !interactive && !silentReadsAllowed { return (errSecInteractionNotAllowed, nil, nil) }
+        var q: [String: Any] = [kSecClass as String: kSecClassInternetPassword,
+                                kSecAttrServer as String: server,
+                                kSecReturnData as String: true,
                                 kSecReturnAttributes as String: true,
                                 kSecMatchLimit as String: kSecMatchLimitOne]
+        var out: CFTypeRef?
+        let status: OSStatus
+        if interactive {
+            status = SecItemCopyMatching(q as CFDictionary, &out)
+        } else {
+            let ctx = LAContext()
+            ctx.interactionNotAllowed = true
+            q[kSecUseAuthenticationContext as String] = ctx
+            q[kSecUseAuthenticationUI as String] = kSecUseAuthenticationUIFail
+            uiLock.lock(); defer { uiLock.unlock() }
+            var was: DarwinBoolean = true
+            SecKeychainGetUserInteractionAllowed(&was)
+            SecKeychainSetUserInteractionAllowed(false)
+            defer { SecKeychainSetUserInteractionAllowed(was.boolValue) }
+            status = SecItemCopyMatching(q as CFDictionary, &out)
+        }
+        let item = out as? [String: Any]
+        return (status, item?[kSecAttrAccount as String] as? String, item?[kSecValueData as String] as? Data)
+    }
+
+    /// Checks an internet password exists without reading its secret. Never prompts.
+    static func internetExists(server: String) -> Bool {
+        quietlyExists([kSecClass as String: kSecClassInternetPassword,
+                       kSecAttrServer as String: server,
+                       kSecReturnAttributes as String: true,
+                       kSecMatchLimit as String: kSecMatchLimitOne])
+    }
+
+    /// Checks an item exists without reading its secret. Never prompts.
+    static func exists(service: String) -> Bool {
+        quietlyExists([kSecClass as String: kSecClassGenericPassword,
+                       kSecAttrService as String: service,
+                       kSecReturnAttributes as String: true,
+                       kSecMatchLimit as String: kSecMatchLimitOne])
+    }
+
+    /// Looks for an item with every prompt turned off, so even a locked keychain can't ask
+    /// (these checks run during scans, before onboarding is done).
+    private static func quietlyExists(_ query: [String: Any]) -> Bool {
+        var q = query
+        q[kSecUseAuthenticationUI as String] = kSecUseAuthenticationUIFail
+        uiLock.lock(); defer { uiLock.unlock() }
+        var was: DarwinBoolean = true
+        SecKeychainGetUserInteractionAllowed(&was)
+        SecKeychainSetUserInteractionAllowed(false)
+        defer { SecKeychainSetUserInteractionAllowed(was.boolValue) }
         var out: CFTypeRef?
         return SecItemCopyMatching(q as CFDictionary, &out) == errSecSuccess
     }
@@ -1059,8 +1108,68 @@ struct GeminiProvider: UsageProvider {
     }
 }
 
+// MARK: Zed (the editor's own sign-in: monthly edit predictions)
+
+/// Zed keeps its sign-in in the Keychain after you sign in inside the editor: an internet password
+/// for https://zed.dev whose account is your Zed user id. TUM only reads it (never changes or
+/// renews it) and sends it only to Zed's own cloud, the same call the editor makes.
+/// Path from CodexBar's Zed provider (docs/SYNC-PLAN.md).
+struct ZedProvider: UsageProvider {
+    let id = "zed"
+    static let server = "https://zed.dev"
+    static let usageURL = URL(string: "https://cloud.zed.dev/client/users/me")!
+
+    func credentialAvailable() -> Bool { Keychain.internetExists(server: Self.server) }
+
+    private func authorization(interactive: Bool) throws -> String {
+        let r = Keychain.readInternet(server: Self.server, interactive: interactive)
+        if Keychain.isPermissionProblem(r.status) {
+            throw interactive ? ProviderError.denied("macOS didn't let TUM check Zed. Try again and choose Always Allow.") : ProviderError.needsApproval
+        }
+        guard r.status == errSecSuccess, let d = r.data,
+              let header = Self.header(user: r.account, token: String(data: d, encoding: .utf8)) else {
+            throw ProviderError.notSignedIn("Sign in to Zed first, then try again.")
+        }
+        return header
+    }
+
+    /// "<user id> <token>", the way the editor sends it. Each part is checked on its own, since a
+    /// header value with a space in it would never pass `headerSafe` as a whole.
+    static func header(user: String?, token: String?) -> String? {
+        guard let u = user?.trimmingCharacters(in: .whitespacesAndNewlines),
+              u.range(of: #"^[0-9]{1,20}$"#, options: .regularExpression) != nil,
+              let t = headerSafe(token?.trimmingCharacters(in: .whitespacesAndNewlines)) else { return nil }
+        return "\(u) \(t)"
+    }
+
+    func fetch(interactive: Bool) async throws -> [UsageLimit] {
+        var req = URLRequest(url: Self.usageURL)
+        req.setValue(try authorization(interactive: interactive), forHTTPHeaderField: "Authorization")
+        let r: Any
+        do { r = try await HTTP.json(req, provider: id) }
+        catch ProviderError.expired { throw ProviderError.expired("Sign in to Zed again, then TUM can check it.") }
+        guard let out = Self.parse(r) else { throw ProviderError.format("Zed") }
+        return out
+    }
+
+    /// Edit predictions left this billing period. Plans with no cap (Pro and up) say "unlimited"
+    /// and show as full, like Copilot's unlimited plans.
+    static func parse(_ r: Any) -> [UsageLimit]? {
+        guard let p = J.dig(r, "plan", "usage", "edit_predictions") as? [String: Any],
+              let used = J.num(p["used"]), used >= 0 else { return nil }
+        let reset = J.date(J.dig(r, "plan", "subscription_period", "ended_at"))
+        let raw = p["limit"]
+        if (raw as? String) == "unlimited" {
+            return [UsageLimit(kind: .only, label: "Month", percentLeft: 100, resetsAt: reset)]
+        }
+        guard let limit = J.num(raw) ?? J.num((raw as? [String: Any])?["limited"]), limit > 0 else { return nil }
+        return [UsageLimit(kind: .only, label: "Month", percentLeft: clampLeft(used: used / limit * 100), resetsAt: reset)]
+    }
+}
+
 enum Providers {
     static let all: [String: UsageProvider] = [
+        "zed": ZedProvider(),
         "claude": ClaudeProvider(),
         "codex": CodexProvider(),
         "cursor": CursorProvider(),

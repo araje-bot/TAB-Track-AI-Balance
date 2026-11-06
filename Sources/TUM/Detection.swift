@@ -15,8 +15,8 @@ struct CatalogEntry {
     var markers: [String] = []
 }
 
-/// Known AI apps. Anything not listed is still picked up by name keywords
-/// and shown as "found" so people see TUM noticed it.
+/// Known AI apps. Only apps people pay for and run out of are listed (AK): TUM is for making
+/// the most of a subscription, so other apps with "AI" in their name are not picked up.
 enum Catalog {
     static let all: [CatalogEntry] = [
         CatalogEntry(id: "claude", name: "Claude", category: "Chat & code", appNames: ["Claude"],
@@ -46,54 +46,64 @@ enum Catalog {
         // ChatGPT isn't listed on its own: its limits are the same as Codex's and show there.
         CatalogEntry(id: "perplexity", name: "Perplexity", category: "Search", appNames: ["Perplexity"],
                      bundleIDs: ["ai.perplexity.mac"], providerID: nil, source: "",
-                     hint: "Sign-in support planned", symbol: "magnifyingglass"),
+                     hint: "No usage data yet", symbol: "magnifyingglass"),
         CatalogEntry(id: "copilot", name: "GitHub Copilot", category: "Code", appNames: ["GitHub Copilot"],
                      bundleIDs: [], providerID: "copilot",
                      source: "Copilot sign-in",
                      hint: "One-time sign-in", symbol: "chevron.left.forwardslash.chevron.right",
                      markers: [".config/github-copilot", ".copilot"]),
-        CatalogEntry(id: "mscopilot", name: "Microsoft Copilot", category: "Chat", appNames: ["Copilot", "Microsoft Copilot"],
-                     bundleIDs: [], providerID: nil, source: "",
-                     hint: "Account sign-in planned", symbol: "bubble.left.and.bubble.right.fill"),
         CatalogEntry(id: "antigravity", name: "Antigravity", category: "Code", appNames: ["Antigravity"],
                      bundleIDs: [], providerID: nil, source: "",
-                     hint: "Google sign-in planned", symbol: "arrow.up.circle", markers: [".gemini/antigravity"]),
+                     hint: "No usage data yet", symbol: "arrow.up.circle", markers: [".gemini/antigravity"]),
         CatalogEntry(id: "kiro", name: "Kiro", category: "Code", appNames: ["Kiro"],
                      bundleIDs: [], providerID: nil, source: "",
-                     hint: "AWS sign-in planned", symbol: "chevron.left.forwardslash.chevron.right", markers: [".kiro"]),
+                     hint: "No usage data yet", symbol: "chevron.left.forwardslash.chevron.right", markers: [".kiro"]),
         CatalogEntry(id: "lovable", name: "Lovable", category: "Build apps", appNames: ["Lovable"],
                      bundleIDs: [], providerID: nil, source: "",
-                     hint: "Credits view planned", symbol: "heart", markers: [".lovable"]),
+                     hint: "No usage data yet", symbol: "heart", markers: [".lovable"]),
         CatalogEntry(id: "zed", name: "Zed", category: "Code", appNames: ["Zed"],
-                     bundleIDs: [], providerID: nil, source: "",
-                     hint: "Zed sign-in planned", symbol: "chevron.left.forwardslash.chevron.right"),
-        CatalogEntry(id: "midjourney", name: "Midjourney", category: "Images", appNames: ["Midjourney"],
-                     bundleIDs: [], providerID: nil, source: "",
-                     hint: "Credits view planned", symbol: "photo"),
-        CatalogEntry(id: "elevenlabs", name: "ElevenLabs", category: "Voice", appNames: ["ElevenLabs", "ElevenReader"],
-                     bundleIDs: [], providerID: nil, source: "",
-                     hint: "Credits view planned", symbol: "waveform"),
-        CatalogEntry(id: "suno", name: "Suno", category: "Music", appNames: ["Suno"],
-                     bundleIDs: [], providerID: nil, source: "",
-                     hint: "Credits view planned", symbol: "music.note"),
-        CatalogEntry(id: "runway", name: "Runway", category: "Video", appNames: ["Runway"],
-                     bundleIDs: [], providerID: nil, source: "",
-                     hint: "Credits view planned", symbol: "film"),
-        CatalogEntry(id: "higgsfield", name: "Higgsfield", category: "Video", appNames: ["Higgsfield"],
-                     bundleIDs: [], providerID: nil, source: "",
-                     hint: "Credits view planned", symbol: "film"),
+                     bundleIDs: ["dev.zed.Zed"], providerID: "zed",
+                     source: "Zed sign-in",
+                     hint: "Sign in to Zed first", symbol: "chevron.left.forwardslash.chevron.right"),
         CatalogEntry(id: "windsurf", name: "Windsurf", category: "Code", appNames: ["Windsurf"],
                      bundleIDs: [], providerID: nil, source: "",
-                     hint: "Windsurf sign-in planned", symbol: "wind", markers: [".codeium/windsurf"]),
+                     hint: "No usage data yet", symbol: "wind", markers: [".codeium/windsurf"]),
+        // Big creative apps with credits but no way to read them yet (docs/SYNC-PLAN.md).
+        CatalogEntry(id: "canva", name: "Canva", category: "Design", appNames: ["Canva"],
+                     bundleIDs: ["com.canva.CanvaDesktop"], providerID: nil, source: "",
+                     hint: "No usage data yet", symbol: "paintpalette.fill"),
+        CatalogEntry(id: "capcut", name: "CapCut", category: "Video", appNames: ["CapCut"],
+                     bundleIDs: [], providerID: nil, source: "",
+                     hint: "No usage data yet", symbol: "film"),
         CatalogEntry(id: "ollama", name: "Ollama", category: "Runs on your Mac", appNames: ["Ollama"],
                      bundleIDs: [], providerID: nil, source: "",
-                     hint: "Local, so no limits", symbol: "desktopcomputer", markers: [".ollama"]),
-        CatalogEntry(id: "lmstudio", name: "LM Studio", category: "Runs on your Mac", appNames: ["LM Studio"],
-                     bundleIDs: [], providerID: nil, source: "",
-                     hint: "Local, so no limits", symbol: "desktopcomputer"),
+                     hint: "Cloud usage planned", symbol: "desktopcomputer", markers: [".ollama"]),
     ]
 
-    static func entry(_ id: String) -> CatalogEntry? { all.first { $0.id == id } }
+    /// Coming soon (AK): paid creative and work tools with a very large user base whose credits
+    /// people run out of, and a real way to read them (docs/SYNC-PLAN.md). Midjourney, Kling and
+    /// Runway have none yet, so they aren't promised. One that is installed on this Mac moves up to "Ready to
+    /// connect" instead, where it connects with no numbers until TUM can read it.
+    static let planned: [CatalogEntry] = [
+        soon("elevenlabs", "ElevenLabs", "Voice", "waveform", "Credits view planned", apps: ["ElevenLabs", "ElevenReader"]),
+        soon("higgsfield", "Higgsfield", "Video", "film", "Credits view planned"),
+        soon("suno", "Suno", "Music", "music.note", "Credits view planned"),
+        soon("manus", "Manus", "Agents", "sparkles", "Credits view planned"),
+    ]
+
+    private static func soon(_ id: String, _ name: String, _ category: String, _ symbol: String, _ hint: String,
+                             apps: [String]? = nil) -> CatalogEntry {
+        CatalogEntry(id: id, name: name, category: category, appNames: apps ?? [name], bundleIDs: [], providerID: nil,
+                     source: "", hint: hint, symbol: symbol)
+    }
+
+    /// The Coming soon cards, as apps.
+    static var plannedApps: [AIApp] {
+        planned.map { AIApp(id: $0.id, name: $0.name, category: $0.category, appURL: nil, supported: false,
+                            credentialFound: false, hint: $0.hint, source: "") }
+    }
+
+    static func entry(_ id: String) -> CatalogEntry? { all.first { $0.id == id } ?? planned.first { $0.id == id } }
 }
 
 enum Detector {
@@ -116,27 +126,11 @@ enum Detector {
         return found
     }
 
-    /// Apps that are already covered by another entry, so the scan never lists them on their own.
-    /// ChatGPT's limits are Codex's and show under Codex (AK).
-    static let coveredElsewhere: Set<String> = ["ChatGPT"]
-
-    static let keywords = ["GPT", "Copilot", "LLM", "Gemini", "Llama", "Mistral", "Grok", "DeepSeek", "Claude", "Perplexity", "Ollama"]
-
-    /// Helper apps that come with AI tools (URL handlers, updaters) are not apps people use.
-    static let helperWords = ["URL Handler", "Helper", "Updater", "Uninstall", "Installer", "Launcher", "Crash Reporter"]
-
-    static func looksLikeAI(_ name: String) -> Bool {
-        if helperWords.contains(where: { name.range(of: $0, options: .caseInsensitive) != nil }) { return false }
-        let tokens = name.components(separatedBy: CharacterSet.alphanumerics.inverted)
-        if tokens.contains("AI") { return true }
-        return keywords.contains { name.range(of: $0, options: .caseInsensitive) != nil }
-    }
-
     static func scan() -> [AIApp] {
         let apps = installedApps()
         var out: [AIApp] = []
-        var usedNames = coveredElsewhere
-        for e in Catalog.all {
+        let planned = Set(Catalog.planned.map(\.id))
+        for e in Catalog.all + Catalog.planned {
             var url: URL? = e.appNames.compactMap { apps[$0] }.first
             if url == nil {
                 url = e.bundleIDs.compactMap { NSWorkspace.shared.urlForApplication(withBundleIdentifier: $0) }.first
@@ -145,16 +139,10 @@ enum Detector {
             // Also counts command-line tools that are set up but have no Mac app.
             let marked = e.markers.contains { FileManager.default.fileExists(atPath: homeURL($0).path) }
             if url == nil && !cred && !marked { continue }
-            e.appNames.forEach { usedNames.insert($0) }
-            let hint = e.providerID != nil && !cred ? e.hint : e.hint
+            // A Coming soon app found on this Mac can be connected now, with no numbers yet (AK).
             out.append(AIApp(id: e.id, name: e.name, category: e.category, appURL: url,
                              supported: e.providerID != nil, credentialFound: cred,
-                             hint: hint, source: e.source))
-        }
-        for (name, url) in apps.sorted(by: { $0.key < $1.key }) where !usedNames.contains(name) && looksLikeAI(name) && name.count <= 32 {
-            out.append(AIApp(id: "other:" + name, name: name, category: "AI app", appURL: url,
-                             supported: false, credentialFound: false,
-                             hint: "Not supported yet", source: ""))
+                             hint: planned.contains(e.id) ? "No usage data yet" : e.hint, source: e.source))
         }
         return out
     }

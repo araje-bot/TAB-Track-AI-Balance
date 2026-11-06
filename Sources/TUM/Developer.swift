@@ -138,7 +138,7 @@ extension StatusItemController {
     @objc private func devOnboarding(_ sender: NSMenuItem) { dev?.onboarding(sender.tag) }
 
     @objc private func devConnect() {
-        let id = store.detected.first(where: { $0.canConnect })?.id ?? store.demoID
+        let id = store.detected.first(where: { $0.supported && $0.canConnect })?.id ?? store.demoID
         dev?.connect(store.sampleApp(id))
     }
 

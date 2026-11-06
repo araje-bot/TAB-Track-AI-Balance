@@ -485,12 +485,13 @@ func statusText(_ s: String) -> Text {
 /// - The button is the same `iconButton()` glass circle as Connect and back, so the sizes match exactly.
 /// - The menu is a plain AppKit `NSMenu`, opened as a pull-down just below the button, so it looks and
 ///   behaves like every other Mac menu (keyboard, VoiceOver, Liquid Glass background).
-/// - Items follow the macOS HIG: "Update now", a separator, then "Remove <app>" last. Mac menus don't
+/// - Items follow the macOS HIG: "Sync", a separator, then "Remove <app>" last. Mac menus don't
 ///   color destructive items red (that is the iOS rule), so Remove is a normal item.
 /// No confirmation, since connecting again undoes it. Right-click on the row offers the same items.
 struct AppMenu: View {
     let name: String
-    let refresh: () -> Void
+    /// Nil for apps TUM can't read yet: there is nothing to sync, so the menu only offers Remove.
+    let refresh: (() -> Void)?
     let remove: () -> Void
     @State private var anchor = MenuAnchor.Holder()
 
@@ -523,21 +524,25 @@ struct MenuAnchor: NSViewRepresentable {
 /// The same items in the More menu and the right-click menu, so both always match (HIG Context menus).
 struct AppMenuItems: View {
     let name: String
-    let refresh: () -> Void
+    let refresh: (() -> Void)?
     let remove: () -> Void
 
     var body: some View {
-        Button("Update now", systemImage: "arrow.clockwise", action: refresh)
-        Divider()
+        if let refresh {
+            Button("Sync", systemImage: "arrow.clockwise", action: refresh)
+            Divider()
+        }
         Button("Remove \(name)", systemImage: "minus.circle", action: remove)
     }
 
     /// Opens the items as a standard pull-down menu under `view`.
-    @MainActor static func show(name: String, refresh: @escaping () -> Void, remove: @escaping () -> Void, below view: NSView?) {
+    @MainActor static func show(name: String, refresh: (() -> Void)?, remove: @escaping () -> Void, below view: NSView?) {
         guard let view else { return }
         let menu = NSMenu()
-        menu.addItem(ActionItem("Update now", symbol: "arrow.clockwise", action: refresh))
-        menu.addItem(.separator())
+        if let refresh {
+            menu.addItem(ActionItem("Sync", symbol: "arrow.clockwise", action: refresh))
+            menu.addItem(.separator())
+        }
         menu.addItem(ActionItem("Remove \(name)", symbol: "minus.circle", action: remove))
         menu.popUp(positioning: nil, at: NSPoint(x: 0, y: view.bounds.height + 4), in: view)
     }
