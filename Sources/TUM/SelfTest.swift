@@ -374,6 +374,15 @@ enum SelfTest {
         check("The shortcut box says why a press won't work, shows the good one, and saves it on Save",
               saysWhy && showsFirst && !rec.recordingShortcut && rec.shortcutChoice == ctrlK && rec.customShortcut == ctrlK
               && rec.pendingShortcut == nil)
+        rec.shortcutChoice = .commandT
+        rec.startRecordingShortcut()
+        let reopens = rec.recordingShortcut && rec.pendingShortcut == ctrlK
+        rec.stopRecordingShortcut()
+        let cancelKeeps = rec.shortcutChoice == .commandT && rec.customShortcut == ctrlK
+        rec.shortcutChoice = ctrlK
+        rec.activeShortcut = ctrlK
+        check("Custom always opens the box with the saved keys in it, and Cancel keeps the old pick",
+              reopens && cancelKeeps && rec.shortcutSubtitle("x") == "Your own keys, \(ctrlK.glyphs)")
         // One button size everywhere: icon buttons (Connect, back) match text buttons in height.
         let plug = NSHostingView(rootView: ConnectButton(name: "Test", action: {})).fittingSize
         let back = NSHostingView(rootView: Button("All apps", systemImage: "chevron.left") {}.iconButton()).fittingSize

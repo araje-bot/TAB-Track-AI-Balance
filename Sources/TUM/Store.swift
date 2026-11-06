@@ -80,9 +80,10 @@ final class Store: ObservableObject {
     /// The keys pressed in the shortcut box, shown there until Save (AK: see it, then set it).
     @Published private(set) var pendingShortcut: ShortcutChoice?
 
+    /// Opens the shortcut box. Saved custom keys start in it, so Save alone picks them again.
     func startRecordingShortcut() {
         shortcutProblem = nil
-        pendingShortcut = nil
+        pendingShortcut = customShortcut
         guard !recordingShortcut else { return }
         recordingShortcut = true
         onShortcutRecording?(true)
@@ -121,6 +122,7 @@ final class Store: ObservableObject {
     func shortcutSubtitle(_ normal: String) -> String {
         if recordingShortcut { return "Set your own keys in the box that opened" }
         if activeShortcut != shortcutChoice { return "Taken by another app, so \(activeShortcut.glyphs) works" }
+        if !ShortcutChoice.presets.contains(shortcutChoice) { return "Your own keys, \(shortcutChoice.glyphs)" }
         return normal
     }
     /// TUM is always in the Dock while one of its windows is open. This keeps it there all the time.

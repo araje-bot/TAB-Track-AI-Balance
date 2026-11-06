@@ -112,8 +112,8 @@ enum ShortcutProblem: Error, Equatable {
 }
 
 /// The "See all apps" control: ⌘ + T, ⌥ + T, and Custom, in the usual segmented look.
-/// Custom opens a small box under it (AK): plain instructions, a field that shows the keys as
-/// they're pressed, then Save. Clicking Custom again, once one is saved, makes a new one.
+/// Custom always opens a small box under it (AK): plain instructions, a field that shows the keys
+/// as they're pressed, then Save. A saved custom shortcut is already in the box.
 struct ShortcutPicker: View {
     @ObservedObject var store: Store
 
@@ -121,19 +121,20 @@ struct ShortcutPicker: View {
 
     private var selection: Binding<Slot> {
         Binding(
-            get: { ShortcutChoice.presets.contains(store.shortcutChoice) ? .preset(store.shortcutChoice) : .custom },
+            // Custom stays highlighted while its box is open. Cancel goes back to the old pick.
+            get: { store.recordingShortcut || !ShortcutChoice.presets.contains(store.shortcutChoice) ? .custom : .preset(store.shortcutChoice) },
             set: { slot in
                 switch slot {
                 case .preset(let p): store.stopRecordingShortcut(); store.shortcutChoice = p
-                case .custom:
-                    // A saved one is picked right away; with none yet, the box opens to make one.
-                    if let c = store.customShortcut { store.shortcutChoice = c } else { store.startRecordingShortcut() }
+                // Custom always opens the box (AK), with the saved keys already in it.
+                case .custom: store.startRecordingShortcut()
                 }
             })
     }
 
     private var options: [(Slot, String)] {
-        ShortcutChoice.presets.map { (Slot.preset($0), $0.glyphs) } + [(.custom, store.customShortcut?.glyphs ?? "Custom")]
+        // Always the word Custom (AK): showing the saved keys there hid the option.
+        ShortcutChoice.presets.map { (Slot.preset($0), $0.glyphs) } + [(.custom, "Custom")]
     }
 
     private var editing: Binding<Bool> {
@@ -143,8 +144,7 @@ struct ShortcutPicker: View {
     var body: some View {
         SegmentedChoice(selection: selection, options: options, label: "Shortcut",
                         reselect: { if $0 == .custom { store.startRecordingShortcut() } })
-            .help(store.customShortcut == nil ? "Pick keys, or make your own with Custom"
-                                              : "Pick keys. Click your own again to change it")
+            .help("Pick keys, or click Custom to make your own")
             .popover(isPresented: editing, arrowEdge: .bottom) { ShortcutEditor(store: store) }
     }
 }
