@@ -59,8 +59,8 @@ struct SettingsView: View {
             }
 
             Section {
-                // Every app found on this Mac can be connected (AK). Apps TUM can't read yet come last.
-                let ready = store.detected.filter(\.supported) + store.detected.filter { !$0.supported }
+                // Only apps TUM can read (AK). The others wait in Coming soon.
+                let ready = store.readyToConnect
                 if ready.isEmpty {
                     Text("No AI apps found yet. Install one and TUM will find it.")
                         .foregroundStyle(.secondary)
@@ -76,7 +76,7 @@ struct SettingsView: View {
 
             let later = store.comingSoon
             if !later.isEmpty {
-                // Image, video and music apps TUM plans to support: nothing to click yet (AK).
+                // Apps TUM can't read yet, on this Mac or planned: nothing to click yet (AK).
                 Section("Coming soon") {
                     ForEach(later) { app in
                         HStack(spacing: 12) {

@@ -4,6 +4,7 @@ Researched 2026-11-06. An app goes on Coming soon only when there is a real way 
 
 ## Rules every new reader follows
 
+- An app gets a Connect button only once TUM can show its real numbers (AK, 2026-11-06). Until then it waits under Coming soon.
 - Read the usage number only. Never prompts, files or chats.
 - Prefer a sign-in the app already keeps on this Mac. If there is none, use the vendor's own browser sign-in and keep the result in TUM's own Keychain item, deleted on Remove (like Cursor and GitHub today).
 - Never renew, rewrite or delete another app's sign-in.
@@ -15,7 +16,7 @@ Researched 2026-11-06. An app goes on Coming soon only when there is a real way 
 | Order | App | How TUM reads it | Limit TUM shows | State | Open question |
 |---|---|---|---|---|---|
 | 1 | Zed | Zed's own sign-in in the Keychain, then `cloud.zed.dev/client/users/me` | Monthly edit predictions (Pro and up have no cap, so they show full) | **Built 2026-11-06** | No |
-| 2 | Kiro | kiro-cli's local database, then `GetUsageLimits` | Monthly | Ready (CodexBar has it) | Reading Kiro's own sign-in file |
+| 2 | Kiro | Run `kiro-cli chat --no-interactive "/usage"` and read its monthly and bonus credits (how CodexBar does it) | Monthly | Ready (CodexBar has it) | Needs kiro-cli installed and signed in |
 | 3 | Antigravity | The local language server's `GetUserStatus`, with the one-time key from its process arguments | Session and weekly | Ready (CodexBar has it) | Reading a key from another process |
 | 4 | ElevenLabs | Person pastes an API key with only the User read permission. `GET api.elevenlabs.io/v1/user/subscription` returns used, limit and reset date | Monthly credits | Ready (CodexBar has it) | A new "paste a key" step |
 | 5 | Higgsfield | Higgsfield's official MCP server with its own browser sign-in, then its balance tool | Monthly credits | Possible. Confirm the sign-in and tool name first | TUM acting as a small MCP client |
@@ -32,13 +33,14 @@ Every step ends with the self-test covering the new reader with sample replies, 
 | Midjourney | No API. Its terms forbid automated access and accounts get blocked. |
 | Kling AI | Its API uses separate prepaid packs. No way to read plan credits. |
 | Runway | API credits are separate from plan credits. Recheck in a few months. |
-| Canva | No call returns the remaining AI credits. Still connectable when installed. |
-| CapCut | No public API. Still connectable when installed. |
-| Lovable, Gamma, Granola, Wispr Flow, Otter, Grammarly, NotebookLM, QuillBot, Microsoft Copilot, Le Chat, DeepSeek, Meta AI, Character.AI | Small impact for this persona, or no limit to read. |
+| Canva | No call returns the remaining AI credits. Not listed. |
+| CapCut | No public API. Not listed. |
+| Lovable | Credits show only on its settings page. No API. Not listed. |
+| Gamma, Granola, Wispr Flow, Otter, Grammarly, NotebookLM, QuillBot, Microsoft Copilot, Le Chat, DeepSeek, Meta AI, Character.AI | Small impact for this persona, or no limit to read. |
 | Sora | Shut down in 2026. |
 
 ## Open decisions
 
 1. A "paste a key" step (ElevenLabs, Ollama). Simple and documented, but new for TUM.
-2. Reading another app's own sign-in file or a key from its process (Kiro, Windsurf, Antigravity). Each needs a careful privacy review first.
+2. Reading another app's own sign-in file or a key from its process (Windsurf, Antigravity). Each needs a careful privacy review first.
 3. Browser cookies (Suno, Manus, Perplexity). The most fragile and the most sensitive, so these wait until the others ship.

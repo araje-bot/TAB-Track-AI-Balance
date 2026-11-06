@@ -274,24 +274,42 @@ enum SelfTest {
         // Card notes never wrap or cut off: 24 characters, 18 when the Connect button shares the row.
         check("App notes fit on one line", (Catalog.all + Catalog.planned).allSatisfy { $0.hint.count <= 24 }
               && Catalog.all.filter { $0.id == "cursor" || $0.id == "grokbot" }.allSatisfy { $0.hint.count <= 18 })
-        // Apps TUM can't read yet can still be connected; they wait with no numbers (AK).
+        // Apps TUM can't read are never connected (AK: no data, no point). They wait in Coming soon,
+        // and ones connected by older versions are dropped on launch.
         let noReader = Store.preview(apps: [:])
-        let perplexity = AIApp(id: "perplexity", name: "Perplexity", category: "Search", appURL: nil, supported: false,
-                               credentialFound: false, hint: "No usage data yet", source: "")
+        let perplexity = AIApp(id: "perplexity", name: "Perplexity", category: "Search", appURL: URL(fileURLWithPath: "/Applications/Perplexity.app"),
+                               supported: false, credentialFound: false, hint: "Usage view planned", source: "")
+        noReader.detected.append(perplexity)
         noReader.connect("perplexity")
-        check("Apps TUM can't read yet can be connected", perplexity.canConnect && noReader.connected.contains("perplexity")
-              && noReader.connectedText("perplexity") == "Connected · No data yet" && noReader.pillState == nil)
+        var refusal: String?? = .none
+        Task { @MainActor in refusal = .some(await noReader.connectAndCheck("perplexity")) }
+        let refusalDeadline = Date().addingTimeInterval(2)
+        while refusal == nil && Date() < refusalDeadline { RunLoop.main.run(until: Date().addingTimeInterval(0.01)) }
+        let oldSuite = "tum-selftest-noreader"
+        let oldDefaults = UserDefaults(suiteName: oldSuite)!
+        oldDefaults.removePersistentDomain(forName: oldSuite)
+        oldDefaults.set(["claude", "perplexity", "lovable", "kiro"], forKey: "connected")
+        let reloaded = Store(defaults: oldDefaults).connected
+        oldDefaults.removePersistentDomain(forName: oldSuite)
+        check("Apps TUM can't read are never connected; they wait in Coming soon",
+              !perplexity.canConnect && !noReader.connected.contains("perplexity") && (refusal ?? nil) != nil
+              && !noReader.readyToConnect.contains { $0.id == "perplexity" } && noReader.comingSoon.first?.id == "perplexity"
+              && reloaded == ["claude"])
+        check("Only installed apps count for apps TUM can't read, never a leftover folder",
+              Catalog.all.filter { $0.providerID == nil }.allSatisfy { $0.markers.isEmpty }
+              && !Catalog.all.contains { ["lovable", "canva", "capcut"].contains($0.id) })
         // Coming soon: each app once, with a real logo; one found on this Mac moves to
         // Ready to connect instead of showing twice.
         let plannedIDs = Catalog.planned.map(\.id)
         let soonStore = Store.preview(apps: [:])
         soonStore.detected.append(AIApp(id: "manus", name: "Manus", category: "Agents", appURL: nil, supported: false,
-                                        credentialFound: false, hint: "No usage data yet", source: ""))
+                                        credentialFound: false, hint: "Credits view planned", source: ""))
         check("Coming soon lists each app once, with its logo, and nothing shut down",
               !plannedIDs.isEmpty && Set(plannedIDs).count == plannedIDs.count
               && Catalog.planned.allSatisfy { BrandLogos.all[$0.id] != nil } && !plannedIDs.contains("sora")
               && Catalog.all.allSatisfy { !plannedIDs.contains($0.id) }
-              && !soonStore.comingSoon.contains { $0.id == "manus" } && soonStore.comingSoon.contains { $0.id == "suno" }
+              && soonStore.comingSoon.filter { $0.id == "manus" }.count == 1 && soonStore.comingSoon.contains { $0.id == "suno" }
+              && !soonStore.readyToConnect.contains { $0.id == "manus" }
               && !plannedIDs.contains("midjourney"))
         let fb = Feedback.issueURL("  Pill stays yellow + won't clear\nafter reset  ")?.absoluteString ?? ""
         check("Feedback opens a filled-in GitHub issue on TUM's repo, never an empty one",
@@ -458,9 +476,6 @@ enum SelfTest {
         pending.snapshots["claude"] = nil
         pending.needsApproval = ["claude"]
         shot(DetailView(store: pending, id: "claude", back: {}), NSSize(width: 340, height: 440), "dev-detail-connect")
-        let waiting = Store.preview(apps: ["claude": 62])
-        waiting.connect("perplexity")
-        shot(DetailView(store: waiting, id: "perplexity", back: {}), NSSize(width: 340, height: 440), "dev-detail-no-data")
         shot(SettingsView(store: yellow), NSSize(width: 580, height: 660), "dev-settings")
         let formBefore = Feedback.config
         Feedback.config = .init(formID: "", message: "", email: "", version: "")
@@ -496,12 +511,10 @@ enum SelfTest {
         // App cards outside the scroll view, so the Connect button and the check can be compared.
         let cards = Store.preview(apps: ["claude": 62], onboardingDone: false)
         let other = AIApp(id: "perplexity", name: "Perplexity", category: "Search", appURL: nil, supported: false,
-                          credentialFound: false, hint: "No usage data yet", source: "")
-        cards.connect("lovable")
-        let lovable = AIApp(id: "lovable", name: "Lovable", category: "Build apps", appURL: nil, supported: false,
-                            credentialFound: false, hint: "No usage data yet", source: "")
+                          credentialFound: false, hint: "Usage view planned", source: "")
         shot(VStack(spacing: 10) {
-            ForEach(Array(cards.detected.prefix(3)) + [other, lovable]) { app in AppCard(store: cards, app: app, connect: {}) }
+            ForEach(Array(cards.detected.prefix(3))) { app in AppCard(store: cards, app: app, connect: {}) }
+            ComingSoonCard(store: cards, app: other)
             ComingSoonCard(store: cards, app: Catalog.plannedApps[0])
         }.padding(12).frame(width: 280), NSSize(width: 280, height: 470), "dev-app-cards")
         // Every Coming soon card, outside a scroll view.

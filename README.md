@@ -30,7 +30,7 @@ TUM opens with a short welcome and shows the AI apps it found. It needs macOS 13
 
 ![The welcome screen](docs/images/welcome.png)
 
-**Pick your AI apps.** TUM finds the ones on your Mac. Tap the plug to connect one. Connected apps say so in green. You can also connect apps TUM can't read yet, and their numbers show up once support arrives.
+**Pick your AI apps.** TUM finds the ones on your Mac. Tap the plug to connect one. Connected apps say so in green. Only apps TUM can show real numbers for can be connected. Apps it can't read yet wait under Coming soon.
 
 ![The list of AI apps, with Claude, Codex, Cursor and Grok Bot connected](docs/images/apps.png)
 

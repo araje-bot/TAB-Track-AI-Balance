@@ -164,10 +164,9 @@ final class Store: ObservableObject {
         let t = defaults.double(forKey: "threshold")
         // Yellow always sits above red's 10% (the old 10% option moves to 20%).
         threshold = Thresholds.yellow.map(\.0).contains(t) ? t : (t > 0 && t <= 15 ? 20 : 25)
-        // Keep apps TUM knows, with or without numbers. Anything else from older versions goes.
-        connected = (defaults.stringArray(forKey: "connected") ?? []).filter { id in
-            Providers.all[id] != nil || Catalog.entry(id) != nil
-        }
+        // Keep only apps TUM can read (AK: a connection with no numbers is no use).
+        // Apps connected with no numbers by older versions, and unknown ones, go.
+        connected = (defaults.stringArray(forKey: "connected") ?? []).filter { Providers.all[$0] != nil }
         let seen = Self.onboardingSeenForThisCopy()
         onboardingDone = seen
         if defaults === UserDefaults.standard { Keychain.silentReadsAllowed = seen }
@@ -197,14 +196,18 @@ final class Store: ObservableObject {
         app(id)?.name ?? Catalog.entry(id)?.name ?? id
     }
 
-    /// Coming soon: the planned apps that aren't on this Mac (installed ones are ready to connect).
+    /// Ready to connect: apps on this Mac that TUM can read.
+    var readyToConnect: [AIApp] { detected.filter(\.supported) }
+
+    /// Coming soon: apps on this Mac that TUM can't read yet (first), then the planned apps.
+    /// Nothing here can be connected until TUM can show real numbers for it (AK).
     var comingSoon: [AIApp] {
+        let waiting = detected.filter { !$0.supported }
         let found = Set(detected.map(\.id))
-        return Catalog.plannedApps.filter { !found.contains($0.id) }
+        return waiting + Catalog.plannedApps.filter { !found.contains($0.id) }
     }
 
-    /// True when TUM can read this app's usage. Other apps can still be connected (AK); they
-    /// show in the list with no numbers until support arrives.
+    /// True when TUM can read this app's usage. Only these can be connected.
     func readsUsage(_ id: String) -> Bool { Providers.all[id] != nil }
     func symbol(_ id: String) -> String { Catalog.entry(id)?.symbol ?? "sparkle" }
     func source(_ id: String) -> String { Catalog.entry(id)?.source ?? "" }
@@ -237,6 +240,7 @@ final class Store: ObservableObject {
     }
 
     func connect(_ id: String) {
+        guard readsUsage(id) else { return }
         if !connected.contains(id) { connected.append(id) }
         errors[id] = nil
         Task { await refresh(id) }
@@ -247,11 +251,8 @@ final class Store: ObservableObject {
     @Published var githubCode: GitHubAuth.DeviceCode?
 
     func connectAndCheck(_ id: String) async -> String? {
-        // Nothing to sign in to or check: it joins the list and waits for support.
-        guard Providers.all[id] != nil else {
-            if !connected.contains(id) { connected.append(id) }
-            return nil
-        }
+        // TUM can't read it yet, so there is nothing to connect.
+        guard Providers.all[id] != nil else { return "TUM can't show usage for this app yet." }
         var signedInNow = false
         // Cursor and Grok Bot need TUM's own Cursor sign-in first (opens the browser).
         if (id == "cursor" || id == "grokbot") && !CursorAuth.signedIn {

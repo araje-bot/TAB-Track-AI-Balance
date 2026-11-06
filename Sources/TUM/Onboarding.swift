@@ -363,11 +363,10 @@ private struct AppsStep: View {
         }
     }
 
-    /// Two groups (AK): every AI app found on this Mac, ready to connect (apps TUM can't read yet
-    /// come last and connect without numbers, so the person decides), and "Coming soon", the image,
-    /// video and music apps TUM plans to support.
+    /// Two groups (AK): apps on this Mac that TUM can read, ready to connect, and "Coming soon",
+    /// apps on this Mac it can't read yet plus the apps it plans to support. No numbers, no Connect.
     private var grid: some View {
-        let ready = store.detected.filter(\.supported) + store.detected.filter { !$0.supported }
+        let ready = store.readyToConnect
         let later = store.comingSoon
         // 28pt between the two groups, so they read as separate sections (AK).
         return VStack(alignment: .leading, spacing: 28) {
