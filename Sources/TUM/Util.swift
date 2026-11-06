@@ -53,6 +53,9 @@ enum Pill {
     /// Bright green water (AK). The logo turns dark where this water covers it (`logoOnWater`),
     /// 9.7:1 like the % text, since a white logo on any green was hard to read.
     static let greenLiquid = Color(hex: 0x5EDB82)
+    /// The green dot's edge (AK, 2026-11-06). A deep green from the same family, so the circle
+    /// stands apart from the green pill without the black outline the other pills don't have.
+    static let greenRim = Color(hex: 0x1B7536)
     /// Healthy water in the usage circles, matched to the amber and red liquids.
     static let blueLiquid = Color(hex: 0x4FA3FF)
 

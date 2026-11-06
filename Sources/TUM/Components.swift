@@ -162,7 +162,7 @@ struct PillView: View {
         HStack(spacing: 4 * scale) {
             LiquidDot(glyph: glyph, symbol: symbol, pct: pct,
                       liquid: c.liquid, size: 16 * scale, flowing: true,
-                      logoOnWater: level == .use ? Pill.ink : nil, rim: level == .use ? Pill.ink : nil)
+                      logoOnWater: level == .use ? Pill.ink : nil, rim: level == .use ? Pill.greenRim : nil)
             Text("\(Int(pct.rounded()))%")
                 .font(.system(size: 12 * scale, weight: .bold))
                 .monospacedDigit()
@@ -293,7 +293,7 @@ struct MorphMark: View {
                     .scaleEffect(isPill ? 0.7 : 1)
                 LiquidDot(glyph: glyph, symbol: symbol, pct: pct ?? 50,
                           liquid: c.liquid, size: 16, flowing: isPill,
-                          logoOnWater: level == .use ? Pill.ink : nil, rim: level == .use ? Pill.ink : nil)
+                          logoOnWater: level == .use ? Pill.ink : nil, rim: level == .use ? Pill.greenRim : nil)
                     .opacity(isPill ? 1 : 0)
                     .scaleEffect(isPill ? 1 : 0.7)
             }
