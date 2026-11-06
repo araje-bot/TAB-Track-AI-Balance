@@ -82,7 +82,7 @@ extension StatusItemController {
         m.addItem(sectionTitle("Preview the pill"))
         m.addItem(devItem("Yellow: getting low", #selector(devYellow)))
         m.addItem(devItem("Red: almost out (8%)", #selector(devRed)))
-        m.addItem(devItem("Green: worth using", #selector(devGreen)))
+        m.addItem(devItem("Green: not utilized enough", #selector(devGreen)))
         let real = devItem("Back to real data", #selector(devReal))
         real.isEnabled = store.devFrozen
         m.addItem(real)
@@ -109,7 +109,7 @@ extension StatusItemController {
         m.addItem(devItem("White icon (all good)", #selector(devWhite)))
         m.addItem(devItem("Yellow pill (24%)", #selector(devYellow)))
         m.addItem(devItem("Red pill (8%)", #selector(devRed)))
-        m.addItem(devItem("Green pill (use it, resets soon)", #selector(devGreen)))
+        m.addItem(devItem("Green pill (not utilized enough)", #selector(devGreen)))
         let real = devItem("Use real data", #selector(devReal))
         real.isEnabled = store.devFrozen
         m.addItem(real)

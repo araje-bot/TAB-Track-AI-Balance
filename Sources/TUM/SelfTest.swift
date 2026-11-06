@@ -540,7 +540,7 @@ enum SelfTest {
             ForEach([("All good", MorphMark(level: .ok, pct: nil, glyph: nil, symbol: "asterisk")),
                      ("Getting low", MorphMark(level: .low, pct: 24, glyph: yellow.glyph("claude"), symbol: "asterisk")),
                      ("Almost out", MorphMark(level: .out, pct: 8, glyph: yellow.glyph("claude"), symbol: "asterisk")),
-                     ("Worth using", MorphMark(level: .use, pct: 85, glyph: yellow.glyph("claude"), symbol: "asterisk"))], id: \.0) { item in
+                     ("Not utilized enough", MorphMark(level: .use, pct: 85, glyph: yellow.glyph("claude"), symbol: "asterisk"))], id: \.0) { item in
                 VStack(spacing: 12) {
                     item.1
                     Text(item.0).font(.callout).foregroundStyle(.secondary)

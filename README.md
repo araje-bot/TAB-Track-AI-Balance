@@ -2,9 +2,9 @@
 
 A macOS menu bar app that shows how much AI usage you have left in Claude, Codex, Cursor, Grok Bot, GitHub Copilot, Grok, Gemini and Zed. The icon turns into a yellow or red pill when an app runs low, and tells you when a limit resets soon with plenty left.
 
-![The menu bar icon in its four states. All good, getting low (yellow), almost out (red), and worth using (green).](docs/images/pills.png)
+![The menu bar icon in its four states. All good, getting low (yellow), almost out (red), and not utilized enough (green).](docs/images/pills.png)
 
-When everything is fine, you see a small round icon. Yellow means an app is getting low. Red means it is almost out. Green means worth using. An app you've barely used has plenty left and resets soon, so use it before that goes to waste.
+When everything is fine, you see a small round icon. Yellow means an app is getting low. Red means it is almost out. Green means not utilized enough. An app you've barely used has plenty left and resets soon, so use it before that goes to waste.
 
 When several apps need you at once, red comes first, then yellow, then green. Apps of the same color take turns, about a minute each, so you see every one. Hover over the icon to see them all at once.
 
