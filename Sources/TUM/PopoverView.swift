@@ -300,13 +300,13 @@ struct DetailView: View {
             HStack(spacing: 10) {
                 Spacer(minLength: 0)
                 Button(role: .destructive) { store.disconnect(id); back() } label: {
-                    ButtonText("Remove").frame(width: 96).foregroundStyle(Palette.redText)
+                    ButtonText("Remove").foregroundStyle(Palette.redText)
                 }
                 .secondaryButton()
                 .help("Remove \(store.name(id))")
                 if !needsConnect && reads {
                     Button { Task { await store.syncNow(id) } } label: {
-                        ButtonText(store.updating.contains(id) ? "Syncing…" : "Sync").frame(width: 96)
+                        ButtonText(store.updating.contains(id) ? "Syncing…" : "Sync")
                     }
                     .disabled(store.updating.contains(id))
                     .secondaryButton()

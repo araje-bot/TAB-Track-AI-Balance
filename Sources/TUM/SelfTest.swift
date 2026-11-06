@@ -299,13 +299,14 @@ enum SelfTest {
               && Feedback.issueURL("   \n ") == nil
               && (Feedback.issueURL(String(repeating: "🙂", count: 2000))?.absoluteString.utf8.count ?? .max) <= Feedback.maxURLLength)
         let savedForm = Feedback.config
+        let realFormReady = savedForm.ready
         Feedback.config = .init(formID: "1FAIpQLSd_fakeFormIdForTheSelfTest0123", message: "entry.111", email: "entry.222", version: "entry.333")
         let pre = Feedback.formURL("Pill + stays", email: "a@b.co")?.absoluteString ?? ""
         let formOK = Feedback.config.ready && pre.hasPrefix("https://docs.google.com/forms/d/e/1FAIpQLSd_fakeFormIdForTheSelfTest0123/viewform?usp=pp_url")
             && pre.contains("entry.111=Pill%20%2B%20stays") && !pre.contains("a@b.co")
         Feedback.config = savedForm
         check("Feedback goes to the team's form with no account; reply email is optional and checked",
-              formOK && Feedback.replyEmail(" a@b.co ") == "a@b.co" && Feedback.replyEmail("not an email") == nil
+              realFormReady && formOK && Feedback.replyEmail(" a@b.co ") == "a@b.co" && Feedback.replyEmail("not an email") == nil
               && !Feedback.Config(formID: "x/../evil", message: "entry.1", email: "entry.2", version: "entry.3").ready)
         check("ChatGPT is never listed on its own", !Detector.scan().contains { $0.name.localizedCaseInsensitiveContains("ChatGPT") })
         // Custom shortcut rules (AK): one of ⌘, ⌥ or ⌃ plus one letter, number or Space.
@@ -338,6 +339,14 @@ enum SelfTest {
         let main = NSHostingView(rootView: Button("Next") {}.primaryButton()).fittingSize
         print("        buttons: connect \(Int(plug.width))x\(Int(plug.height)), back \(Int(back.width))x\(Int(back.height)), text h\(Int(text.height)), main h\(Int(main.height))")
         check("Connect button is a circle", abs(plug.width - plug.height) <= 1)
+        // One width for every text button, with or without an icon (AK).
+        let widths = [NSHostingView(rootView: Button {} label: { ButtonText("Back") }.secondaryButton()).fittingSize.width,
+                      NSHostingView(rootView: Button {} label: { ButtonText("Add more", systemImage: "plus") }.secondaryButton()).fittingSize.width,
+                      NSHostingView(rootView: Button {} label: { ButtonText("Copy diagnostics") }.secondaryButton()).fittingSize.width,
+                      NSHostingView(rootView: Button {} label: { ButtonText("Get started") }.primaryButton()).fittingSize.width,
+                      NSHostingView(rootView: Button {} label: { ButtonText("Open in browser") }.primaryButton()).fittingSize.width]
+        print("        text button widths: \(widths.map { Int($0.rounded()) })")
+        check("Every text button is the same width, icon or not", (widths.max() ?? 0) - (widths.min() ?? 0) <= 1)
         let more = NSHostingView(rootView: AppMenu(name: "Test", refresh: {}, remove: {})).fittingSize
         print("        more: \(Int(more.width))x\(Int(more.height))")
         check("More button matches the Connect circle", Int(more.height.rounded()) == Int(plug.height.rounded()) && abs(more.width - more.height) <= 1)
@@ -453,11 +462,11 @@ enum SelfTest {
         waiting.connect("perplexity")
         shot(DetailView(store: waiting, id: "perplexity", back: {}), NSSize(width: 340, height: 440), "dev-detail-no-data")
         shot(SettingsView(store: yellow), NSSize(width: 580, height: 660), "dev-settings")
-        shot(FeedbackPage(back: {}), NSSize(width: 340, height: 330), "dev-feedback-github")
         let formBefore = Feedback.config
-        Feedback.config = .init(formID: "1FAIpQLSd_fakeFormIdForTheSelfTest0123", message: "entry.1", email: "entry.2", version: "entry.3")
-        shot(FeedbackPage(back: {}), NSSize(width: 340, height: 400), "dev-feedback")
+        Feedback.config = .init(formID: "", message: "", email: "", version: "")
+        shot(FeedbackPage(back: {}), NSSize(width: 340, height: 330), "dev-feedback-github")
         Feedback.config = formBefore
+        shot(FeedbackPage(back: {}), NSSize(width: 340, height: 400), "dev-feedback")
         let recording = Store.preview(apps: ["claude": 62])
         recording.startRecordingShortcut()
         recording.recorded(.failure(.usedByMac("⌘ + Q")))

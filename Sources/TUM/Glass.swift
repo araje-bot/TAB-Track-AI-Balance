@@ -102,9 +102,10 @@ enum ControlMetrics {
     static let iconBox: CGFloat = 16
     /// The outer size of every icon circle (Connect, back, More).
     static let round: CGFloat = 28
-    /// The narrowest a text button gets, so short labels ("OK", "Remove") don't look cramped
-    /// and paired buttons line up. The system adds the same side padding to every button.
-    static let minTextWidth: CGFloat = 64
+    /// Every text button's label width (AK: one width for all primary and secondary buttons,
+    /// with or without an icon). Fits the longest label ("Copy diagnostics"); keep new labels
+    /// within it. The system adds the same side padding to every button.
+    static let minTextWidth: CGFloat = 104
     /// Picture taking only (`--snapshots`): offscreen captures can't draw Liquid Glass buttons
     /// (labels come out black on dark), so they get a plain look-alike instead. Never set in the app.
     static var capture = false

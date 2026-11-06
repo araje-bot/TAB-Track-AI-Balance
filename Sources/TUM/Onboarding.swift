@@ -568,7 +568,7 @@ struct ConnectSheet: View {
 
     private var primaryTitle: String {
         switch phase {
-        case .ready: return needsCursor ? "Sign in with Cursor" : needsGitHub ? "Sign in with GitHub" : (macMayAsk ? "Continue" : "Connect")
+        case .ready: return needsCursor ? "Sign in" : needsGitHub ? "Sign in" : (macMayAsk ? "Continue" : "Connect")
         case .connecting: return "Connecting"
         case .connected: return "Done"
         case .failed: return "Try again"
@@ -647,7 +647,7 @@ struct ConnectSheet: View {
                     ActivityRing()
                     Text("Copied. Paste it on github.com and approve.").font(TextStyle.caption).foregroundStyle(.secondary)
                 }
-                Button { NSWorkspace.shared.open(code.url) } label: { ButtonText("Open github.com") }
+                Button { NSWorkspace.shared.open(code.url) } label: { ButtonText("Open GitHub") }
                     .secondaryButton()
             }
             .frame(maxWidth: .infinity)

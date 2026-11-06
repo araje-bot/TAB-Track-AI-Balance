@@ -24,7 +24,9 @@ enum Feedback {
                 && [message, email, version].allSatisfy { $0.range(of: #"^entry\.[0-9]{1,15}$"#, options: .regularExpression) != nil }
         }
     }
-    static var config = Config(formID: "", message: "", email: "", version: "")
+    /// "TUM feedback" in the team's Google Forms. Only these public ids, never a key.
+    static var config = Config(formID: "1FAIpQLSdsAwcxngtGm5yRde79Wc-SBgOTu3JgHa7oL_ggH031kmMnRA",
+                               message: "entry.1415545933", email: "entry.119013934", version: "entry.367937481")
 
     static var versionLine: String {
         let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "dev"
@@ -197,7 +199,7 @@ struct FeedbackForm: View {
                     .disabled(empty || !emailOK || phase == .sending)
                     .keyboardShortcut(.defaultAction)
                 } else {
-                    Button(action: openGitHub) { ButtonText("Continue on GitHub") }
+                    Button(action: openGitHub) { ButtonText("Open GitHub") }
                         .primaryButton()
                         .disabled(empty)
                 }
