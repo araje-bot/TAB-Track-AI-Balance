@@ -161,8 +161,7 @@ struct PillView: View {
         let top = c.top, base = c.base, ink = c.ink
         HStack(spacing: 4 * scale) {
             LiquidDot(glyph: glyph, symbol: symbol, pct: pct,
-                      liquid: c.liquid, size: 16 * scale, flowing: true,
-                      logoOnWater: level == .use ? Pill.ink : nil, rim: level == .use ? Pill.greenRim : nil)
+                      liquid: c.liquid, size: 16 * scale, flowing: true, backWave: Pill.backWave(level))
             Text("\(Int(pct.rounded()))%")
                 .font(.system(size: 12 * scale, weight: .bold))
                 .monospacedDigit()
@@ -192,12 +191,11 @@ struct LiquidDot: View {
     /// Tiles tint the empty part of the tank with its water color, so the whole circle shows
     /// on any background. The menu bar pill keeps the plain dark circle (Figma).
     var tintedTank = false
-    /// The green pill (AK): green water around a white logo on a green pill was hard to read at
-    /// any shade. With a color here, the logo turns this color where the water covers it (like
-    /// the dark % text next to it) and stays white above the water line.
+    /// The green usage circles: the logo turns this color where the water covers it and stays
+    /// white above the water line, since a white logo on bright green water was hard to read.
     var logoOnWater: Color? = nil
-    /// A thin ring in this color, so the circle stands apart from a pill of the same hue.
-    var rim: Color? = nil
+    /// The crest behind the main water. Nil uses the water color at 45%.
+    var backWave: Color? = nil
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
@@ -210,7 +208,7 @@ struct LiquidDot: View {
                 if !empty {
                     // Two waves moving at different speeds read as real flowing water:
                     // a lighter crest behind the main surface.
-                    WaveShape(level: level + 0.04, phase: t * 1.7 + 1.2, amplitude: size * 0.055).fill(liquid.opacity(0.45))
+                    WaveShape(level: level + 0.04, phase: t * 1.7 + 1.2, amplitude: size * 0.055).fill(backWave ?? liquid.opacity(0.45))
                     surface.fill(liquid)
                 }
                 GlyphView(glyph: glyph, symbol: symbol, size: size * glyphScale, color: .white)
@@ -220,7 +218,6 @@ struct LiquidDot: View {
                         .frame(width: size, height: size)
                         .mask(surface)
                 }
-                if let rim { Circle().strokeBorder(rim, lineWidth: max(1, size * 0.06)) }
             }
             .frame(width: size, height: size)
             .compositingGroup()
@@ -292,8 +289,7 @@ struct MorphMark: View {
                     .opacity(isPill ? 0 : 1)
                     .scaleEffect(isPill ? 0.7 : 1)
                 LiquidDot(glyph: glyph, symbol: symbol, pct: pct ?? 50,
-                          liquid: c.liquid, size: 16, flowing: isPill,
-                          logoOnWater: level == .use ? Pill.ink : nil, rim: level == .use ? Pill.greenRim : nil)
+                          liquid: c.liquid, size: 16, flowing: isPill, backWave: Pill.backWave(level))
                     .opacity(isPill ? 1 : 0)
                     .scaleEffect(isPill ? 1 : 0.7)
             }

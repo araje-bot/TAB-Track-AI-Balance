@@ -50,12 +50,14 @@ enum Pill {
     /// "Use it before it resets" (AK): a glossy green with the same dark ink as amber.
     static let green = Color(hex: 0x30B058)
     static let greenTop = Color(hex: 0x4CC172)
-    /// Bright green water (AK). The logo turns dark where this water covers it (`logoOnWater`),
-    /// 9.7:1 like the % text, since a white logo on any green was hard to read.
+    /// Bright green water in the usage circles. The logo turns dark where it covers it (`logoOnWater`).
     static let greenLiquid = Color(hex: 0x5EDB82)
-    /// The green dot's edge (AK, 2026-11-06). A deep green from the same family, so the circle
-    /// stands apart from the green pill without the black outline the other pills don't have.
-    static let greenRim = Color(hex: 0x1B7536)
+    /// The green pill's water (AK's Figma component, 2026-11-06): a dark green under a lighter
+    /// `greenTop` crest, so the white logo reads like it does on the yellow and red pills.
+    static let greenPillWater = Color(hex: 0x248542)
+
+    /// The pill's back wave. Green uses a solid lighter green; the others fade their own water.
+    static func backWave(_ l: Level) -> Color? { l == .use ? greenTop : nil }
     /// Healthy water in the usage circles, matched to the amber and red liquids.
     static let blueLiquid = Color(hex: 0x4FA3FF)
 
@@ -81,7 +83,7 @@ enum Pill {
 
     static func colors(_ l: Level) -> (top: Color, base: Color, liquid: Color, ink: Color) {
         switch l {
-        case .use: return (greenTop, green, greenLiquid, ink)
+        case .use: return (greenTop, green, greenPillWater, ink)
         case .out: return (redTop, red, redLiquid, .white)
         default: return (amberTop, amber, amberLiquid, ink)
         }
