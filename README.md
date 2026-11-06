@@ -1,6 +1,8 @@
 # TUM · Token Utilization Monitor
 
-A macOS menu bar app that shows how much AI usage you have left in Claude, Codex, Cursor, Grok Bot, GitHub Copilot, Grok, Gemini and Zed. The icon turns into a yellow or red pill when an app runs low, and tells you when a limit resets soon with plenty left.
+TUM sits in your Mac's menu bar and shows how much of your AI plan you have left. When an app runs low, its icon turns yellow, then red. When a limit is about to reset and you've barely used it, the icon turns green, so you can use it before it goes to waste.
+
+TUM shows real numbers for Claude, Codex, Cursor, Gemini, GitHub Copilot, Zed and Grok Bot, and for the Grok command-line tool. Other AI apps it finds on your Mac wait under Coming soon until TUM can show their numbers.
 
 ![The menu bar icon in its four states. All good, getting low (yellow), almost out (red), and not utilized enough (green).](docs/images/pills.png)
 
@@ -57,7 +59,7 @@ Or drag TUM from Applications to the Trash.
 ## How TUM works
 
 1. **It finds your AI apps.** TUM checks which supported apps are on your Mac.
-2. **It uses the sign-in you already have.** Most AI apps keep you signed in on your Mac, and TUM uses that, so there is nothing new to log in to. For Cursor, and for GitHub Copilot when it isn't signed in yet, you sign in once in your browser. TUM keeps that sign-in on your Mac and deletes it when you remove the app.
+2. **It uses the sign-in you already have.** Most AI apps keep you signed in on your Mac, and TUM uses that, so there is nothing new to log in to. For Cursor, and for GitHub Copilot when it isn't signed in yet, you sign in once in your browser. For Gemini, you sign in once on Google's own page in a small TUM window. TUM keeps that sign-in in your Mac's Keychain and deletes it when you remove the app.
 3. **It asks each app's own company how much is left.** Claude's numbers come from Anthropic, Codex's from OpenAI, and so on. TUM has no server, no account and no analytics, so nothing goes anywhere else, except feedback you choose to send.
 4. **It shows the answer in your menu bar.** TUM checks again whenever you use an app, and every so often in between.
 
@@ -65,7 +67,7 @@ TUM only asks for usage numbers. It does not save your prompts, chats, files or 
 
 ## Good to know
 
-- TUM never asks for your password, and it does not need keyboard, screen or accessibility permissions.
+- TUM never asks for your password. When you connect Gemini, you type it on Google's own sign-in page. TUM doesn't read or keep it. TUM does not need keyboard, screen or accessibility permissions.
 - macOS may ask once about your Keychain when you connect Claude or Zed. Choose Always Allow.
 - The installer downloads one exact release and checks it against a fingerprint written into the script. A different file is deleted, not installed.
 - All of TUM's code is in this repository, so anyone can read exactly what it does.

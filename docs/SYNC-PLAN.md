@@ -15,6 +15,7 @@ Researched 2026-11-06. An app goes on Coming soon only when there is a real way 
 
 | Order | App | How TUM reads it | Limit TUM shows | State | Open question |
 |---|---|---|---|---|---|
+| 0 | Gemini app | TUM's own Google sign-in in a TUM window, then the usage page's own call (`UsagePageQuery` on gemini.google.com). The Gemini CLI sign-in stays as a fallback for Workspace accounts, since Google ended it for personal, AI Pro and Ultra accounts on 2026-06-18 | 5-hour and weekly | **Built 2026-11-06** | The call is undocumented and can change |
 | 1 | Zed | Zed's own sign-in in the Keychain, then `cloud.zed.dev/client/users/me` | Monthly edit predictions (Pro and up have no cap, so they show full) | **Built 2026-11-06** | No |
 | 2 | Kiro | Run `kiro-cli chat --no-interactive "/usage"` and read its monthly and bonus credits (how CodexBar does it) | Monthly | Ready (CodexBar has it) | Needs kiro-cli installed and signed in |
 | 3 | Antigravity | The local language server's `GetUserStatus`, with the one-time key from its process arguments | Session and weekly | Ready (CodexBar has it) | Reading a key from another process |

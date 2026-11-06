@@ -1,9 +1,12 @@
 import SwiftUI
 
 /// TUM's design layer, built on Apple's HIG for macOS 26.
-/// - Buttons use the SDK's Liquid Glass button styles as one family, all at one size
-///   (`ControlMetrics.size`): `.glassProminent` capsule for the one main action, `.glass` capsule
-///   for the rest, glass circles for icon-only buttons. Choices use the SDK's own picker.
+/// - Buttons are the SDK's standard bordered styles as one family, all at one size
+///   (`ControlMetrics.size`): `.borderedProminent` capsule for the one main action, `.bordered`
+///   capsule for the rest, circles for icon-only buttons. They sit in window content, forms,
+///   sheets and the popover, where the HIG uses standard controls: Liquid Glass is for the
+///   floating layer, and glass on top of glass (the popover) is avoided (AK, 2026-11-06: the glass
+///   buttons drew a lens shadow in Light Mode).
 /// - Content sits in native containers (`GroupBox`, grouped `Form`) on system colors.
 /// - `.glassEffect` is only used on TUM's own floating layers (quick view, hover tip, the
 ///   fallback panel). Shapes inside panels are concentric.
@@ -12,6 +15,7 @@ enum Radius {
     static let card: CGFloat = 18      // content cards: soft, continuous corners like macOS 26 containers
     static let panel: CGFloat = 22     // TUM's own glass panels (quick view, fallback panel)
     static let tip: CGFloat = 16       // the hover tip, soft like the cards
+    static let field: CGFloat = 10     // input boxes, like the shortcut field
     static let tile: CGFloat = 0.225   // usage tiles, the macOS app icon shape (share of size)
 }
 
@@ -51,41 +55,41 @@ extension View {
 
     // MARK: Buttons
 
-    /// The one main action in a view: a prominent Liquid Glass capsule in the accent color.
+    /// The one main action in a view: a prominent capsule in the accent color.
     @ViewBuilder
     func primaryButton() -> some View {
         if ControlMetrics.capture {
             self.buttonStyle(CaptureButtonStyle(prominent: true, circle: false))
-        } else if #available(macOS 26.0, *) {
-            self.buttonStyle(.glassProminent).buttonBorderShape(.capsule).controlSize(ControlMetrics.size)
+        } else if #available(macOS 14.0, *) {
+            self.buttonStyle(.borderedProminent).buttonBorderShape(.capsule).controlSize(ControlMetrics.size)
         } else {
             self.buttonStyle(.borderedProminent).controlSize(ControlMetrics.size)
         }
     }
 
-    /// Every other text button: a Liquid Glass capsule.
+    /// Every other text button: a standard capsule.
     @ViewBuilder
     func secondaryButton() -> some View {
         if ControlMetrics.capture {
             self.buttonStyle(CaptureButtonStyle(prominent: false, circle: false))
-        } else if #available(macOS 26.0, *) {
-            self.buttonStyle(.glass).buttonBorderShape(.capsule).controlSize(ControlMetrics.size)
+        } else if #available(macOS 14.0, *) {
+            self.buttonStyle(.bordered).buttonBorderShape(.capsule).controlSize(ControlMetrics.size)
         } else {
             self.buttonStyle(.bordered).controlSize(ControlMetrics.size)
         }
     }
 
-    /// An icon-only button (back, settings, connect): a Liquid Glass circle, the same height as
-    /// the text buttons. `prominent` tints it with the accent color (the Figma Connect button).
+    /// An icon-only button (back, settings, connect): a circle, the same height as the text
+    /// buttons. `prominent` tints it with the accent color (the Figma Connect button).
     @ViewBuilder
     func iconButton(prominent: Bool = false) -> some View {
         if ControlMetrics.capture {
             self.labelStyle(SquareIcon()).buttonStyle(CaptureButtonStyle(prominent: prominent, circle: true))
-        } else if #available(macOS 26.0, *) {
+        } else if #available(macOS 14.0, *) {
             if prominent {
-                self.labelStyle(SquareIcon()).buttonStyle(.glassProminent).buttonBorderShape(.circle).controlSize(ControlMetrics.size)
+                self.labelStyle(SquareIcon()).buttonStyle(.borderedProminent).buttonBorderShape(.circle).controlSize(ControlMetrics.size)
             } else {
-                self.labelStyle(SquareIcon()).buttonStyle(.glass).buttonBorderShape(.circle).controlSize(ControlMetrics.size)
+                self.labelStyle(SquareIcon()).buttonStyle(.bordered).buttonBorderShape(.circle).controlSize(ControlMetrics.size)
             }
         } else {
             self.labelStyle(SquareIcon()).buttonStyle(prominent ? AnyPrimitiveButtonStyle(.borderedProminent) : AnyPrimitiveButtonStyle(.bordered))

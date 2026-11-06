@@ -146,7 +146,9 @@ struct SettingsView: View {
             }
 
             Section {
-                HStack(spacing: 8) {
+                // Both buttons sit together on the right, 10pt apart like other button pairs (AK).
+                HStack(spacing: 10) {
+                    Spacer()
                     Button {
                         NSPasteboard.general.clearContents()
                         NSPasteboard.general.setString(Diagnostics.contents(), forType: .string)
@@ -154,7 +156,6 @@ struct SettingsView: View {
                     } label: { ButtonText(copied ? "Copied" : "Copy diagnostics") }
                     .secondaryButton()
                     .help("For support. It holds no sign-ins, prompts or work.")
-                    Spacer()
                     Button { NSApp.terminate(nil) } label: { ButtonText("Quit TUM") }.secondaryButton()
                 }
                 HStack {
@@ -212,6 +213,7 @@ struct SettingsView: View {
         }
         if app.usesCursorSignIn && !CursorAuth.signedIn { return app.hint }
         if app.usesGitHubSignIn && !GitHubAuth.signedIn && !CopilotProvider().hasLocalSignIn() { return app.hint }
+        if app.usesGoogleSignIn && !GeminiAuth.signedIn && !GeminiProvider().hasCLISignIn { return app.hint }
         if !app.supported { return app.hint }
         return app.canConnect ? app.source : app.hint
     }

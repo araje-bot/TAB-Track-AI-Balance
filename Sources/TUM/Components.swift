@@ -472,12 +472,12 @@ struct ConnectButton: View {
     }
 }
 
-/// A row subtitle where a leading "Connected" shows in system green (AK) and the rest, like
-/// " · 2 min ago", keeps the row's secondary color. System green adapts to Light and Dark Mode.
+/// A row subtitle where a leading "Connected" shows in green (AK) and the rest, like
+/// " · 2 min ago", keeps the row's secondary color. The green is deeper in Light Mode so it reads.
 func statusText(_ s: String) -> Text {
     let word = "Connected"
     guard s.hasPrefix(word) else { return Text(s) }
-    return Text(word).foregroundColor(Palette.green) + Text(String(s.dropFirst(word.count)))
+    return Text(word).foregroundColor(Palette.connectedText) + Text(String(s.dropFirst(word.count)))
 }
 
 /// The trailing control of a connected app's row: a More button, as in System Settings' Wi-Fi list

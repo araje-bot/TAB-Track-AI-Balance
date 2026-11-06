@@ -112,7 +112,8 @@ enum ShortcutProblem: Error, Equatable {
 }
 
 /// The "See all apps" control: ⌘ + T, ⌥ + T, and Custom, in the usual segmented look.
-/// Picking Custom (or clicking it again) records a new one in place. Esc or clicking away cancels.
+/// Custom opens a small box under it (AK): plain instructions, a field that shows the keys as
+/// they're pressed, then Save. Clicking Custom again, once one is saved, makes a new one.
 struct ShortcutPicker: View {
     @ObservedObject var store: Store
 
@@ -120,14 +121,13 @@ struct ShortcutPicker: View {
 
     private var selection: Binding<Slot> {
         Binding(
-            get: {
-                if store.recordingShortcut { return .custom }
-                return ShortcutChoice.presets.contains(store.shortcutChoice) ? .preset(store.shortcutChoice) : .custom
-            },
+            get: { ShortcutChoice.presets.contains(store.shortcutChoice) ? .preset(store.shortcutChoice) : .custom },
             set: { slot in
                 switch slot {
                 case .preset(let p): store.stopRecordingShortcut(); store.shortcutChoice = p
-                case .custom: store.startRecordingShortcut()
+                case .custom:
+                    // A saved one is picked right away; with none yet, the box opens to make one.
+                    if let c = store.customShortcut { store.shortcutChoice = c } else { store.startRecordingShortcut() }
                 }
             })
     }
@@ -136,16 +136,83 @@ struct ShortcutPicker: View {
         ShortcutChoice.presets.map { (Slot.preset($0), $0.glyphs) } + [(.custom, store.customShortcut?.glyphs ?? "Custom")]
     }
 
+    private var editing: Binding<Bool> {
+        Binding(get: { store.recordingShortcut }, set: { if !$0 { store.stopRecordingShortcut() } })
+    }
+
     var body: some View {
         SegmentedChoice(selection: selection, options: options, label: "Shortcut",
                         reselect: { if $0 == .custom { store.startRecordingShortcut() } })
-            .background(ShortcutRecorder(store: store).frame(width: 1, height: 1).opacity(0))
-            .help(store.recordingShortcut ? "Press the keys, or Esc to cancel" : "Pick keys, or record your own with Custom")
+            .help(store.customShortcut == nil ? "Pick keys, or make your own with Custom"
+                                              : "Pick keys. Click your own again to change it")
+            .popover(isPresented: editing, arrowEdge: .bottom) { ShortcutEditor(store: store) }
     }
 }
 
-/// Listens for the next key press while recording, and only in this TUM window: it is the window's
-/// focused view, like a text field. No keyboard monitoring and no permission.
+/// The box for making your own shortcut: what to press, the keys as they're pressed, then Save.
+struct ShortcutEditor: View {
+    @ObservedObject var store: Store
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Make your own shortcut").font(.headline)
+            Text("Hold \u{2318}, \u{2325} or \u{2303} and press a letter, a number or Space. Your keys show up in the box.")
+                .font(.callout).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            ShortcutField(store: store)
+            Group {
+                if let p = store.shortcutProblem {
+                    Text(p.message).foregroundStyle(Palette.amberText)
+                } else if let c = store.pendingShortcut {
+                    Text("Click Save to use \(c.glyphs).").foregroundStyle(.secondary)
+                } else {
+                    Text("Esc cancels.").foregroundStyle(.tertiary)
+                }
+            }
+            .font(.callout)
+            .lineLimit(1)
+            HStack(spacing: 10) {
+                Spacer()
+                Button { store.stopRecordingShortcut() } label: { ButtonText("Cancel") }
+                    .secondaryButton()
+                Button { store.saveRecordedShortcut() } label: { ButtonText("Save") }
+                    .primaryButton()
+                    .disabled(store.pendingShortcut == nil)
+            }
+        }
+        .padding(16)
+        .frame(width: 320)
+    }
+}
+
+/// Looks like a text field and works like one: it has the focus while the box is open, shows the
+/// keys pressed, and only listens inside TUM's own window. No keyboard monitoring, no permission.
+private struct ShortcutField: View {
+    @ObservedObject var store: Store
+
+    var body: some View {
+        let shape = RoundedRectangle(cornerRadius: Radius.field, style: .continuous)
+        HStack(spacing: 10) {
+            Image(systemName: "keyboard").foregroundStyle(.secondary)
+            if let c = store.pendingShortcut {
+                Text(c.glyphs).font(.title3.weight(.semibold)).foregroundStyle(.primary)
+            } else {
+                Text("Press your keys").foregroundStyle(.tertiary)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 12)
+        .frame(height: 40)
+        .background(Color(nsColor: .textBackgroundColor), in: shape)
+        .overlay(shape.strokeBorder(Color.accentColor, lineWidth: 2))
+        .overlay(ShortcutRecorder(store: store))
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Shortcut")
+        .accessibilityValue(store.pendingShortcut?.glyphs ?? "Press your keys")
+    }
+}
+
+/// Listens for key presses while the box is open, and only there: it is the box's focused view.
 private struct ShortcutRecorder: NSViewRepresentable {
     @ObservedObject var store: Store
 
@@ -155,7 +222,7 @@ private struct ShortcutRecorder: NSViewRepresentable {
         return v
     }
 
-    /// The window closed or the view went away mid-recording: stop, so the shortcut comes back.
+    /// The box closed or went away mid-recording: stop, so the working shortcut comes back.
     static func dismantleNSView(_ v: RecorderView, coordinator: ()) {
         if let s = v.store, s.recordingShortcut { DispatchQueue.main.async { s.stopRecordingShortcut() } }
     }
@@ -164,20 +231,17 @@ private struct ShortcutRecorder: NSViewRepresentable {
         v.store = store
         if store.recordingShortcut, v.window?.firstResponder !== v {
             DispatchQueue.main.async { v.window?.makeFirstResponder(v) }
-        } else if !store.recordingShortcut, v.window?.firstResponder === v {
-            DispatchQueue.main.async { v.window?.makeFirstResponder(nil) }
         }
     }
 
     final class RecorderView: NSView {
         weak var store: Store?
         override var acceptsFirstResponder: Bool { true }
-
-        override func resignFirstResponder() -> Bool {
-            // Clicking anywhere else cancels, like Esc.
-            if let s = store, s.recordingShortcut { DispatchQueue.main.async { s.stopRecordingShortcut() } }
-            return true
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            if store?.recordingShortcut == true { DispatchQueue.main.async { self.window?.makeFirstResponder(self) } }
         }
+        override func mouseDown(with event: NSEvent) { window?.makeFirstResponder(self) }
 
         // ⌘ shortcuts arrive here before keyDown.
         override func performKeyEquivalent(with event: NSEvent) -> Bool {
@@ -191,10 +255,19 @@ private struct ShortcutRecorder: NSViewRepresentable {
             handle(event)
         }
 
+        /// Return with no ⌘, ⌥ or ⌃ held means Save. With one held, it's a key being tried.
+        static func plain(_ event: NSEvent) -> Bool {
+            event.modifierFlags.intersection(.deviceIndependentFlagsMask).isDisjoint(with: [.command, .option, .control])
+        }
+
         private func handle(_ event: NSEvent) {
             guard let store = store else { return }
-            if event.keyCode == UInt16(kVK_Escape) { store.stopRecordingShortcut(); return }
-            store.recorded(ShortcutChoice.make(event))
+            switch Int(event.keyCode) {
+            case kVK_Escape: store.stopRecordingShortcut()
+            case kVK_Return where Self.plain(event), kVK_ANSI_KeypadEnter where Self.plain(event):
+                store.saveRecordedShortcut()
+            default: store.recorded(ShortcutChoice.make(event))
+            }
         }
     }
 }

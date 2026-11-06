@@ -469,6 +469,7 @@ struct AppCard: View {
         if isConnected { return store.errors[app.id] ?? store.connectedText(app.id) }
         if app.usesCursorSignIn && !CursorAuth.signedIn { return app.hint }
         if app.usesGitHubSignIn && !GitHubAuth.signedIn && !CopilotProvider().hasLocalSignIn() { return app.hint }
+        if app.usesGoogleSignIn && !GeminiAuth.signedIn && !GeminiProvider().hasCLISignIn { return app.hint }
         // Apps TUM can't read yet say so up front, so connecting one is an informed choice.
         if !app.supported { return app.hint }
         return app.canConnect ? app.category : app.hint
@@ -517,7 +518,8 @@ struct ConnectSheet: View {
     /// Cursor and Grok Bot need a one-time sign-in in the browser (TUM's own, in the Keychain).
     private var needsCursor: Bool { app.usesCursorSignIn && !CursorAuth.signedIn }
     private var needsGitHub: Bool { app.usesGitHubSignIn && !GitHubAuth.signedIn && !CopilotProvider().hasLocalSignIn() }
-    private var needsBrowser: Bool { needsCursor || needsGitHub }
+    private var needsGoogle: Bool { app.usesGoogleSignIn && !GeminiAuth.signedIn }
+    private var needsBrowser: Bool { needsCursor || needsGitHub || needsGoogle }
 
     var body: some View {
         VStack(spacing: 18) {
@@ -567,7 +569,7 @@ struct ConnectSheet: View {
 
     private var primaryTitle: String {
         switch phase {
-        case .ready: return needsCursor ? "Sign in" : needsGitHub ? "Sign in" : (macMayAsk ? "Continue" : "Connect")
+        case .ready: return needsCursor || needsGitHub || needsGoogle ? "Sign in" : (macMayAsk ? "Continue" : "Connect")
         case .connecting: return "Connecting"
         case .connected: return "Done"
         case .failed: return "Try again"
@@ -583,6 +585,9 @@ struct ConnectSheet: View {
             } else if needsCursor {
                 note("safari", .secondary, "Sign in once in your browser",
                      "TUM opens cursor.com. Click Approve, then come back here.")
+            } else if needsGoogle {
+                note("person.crop.circle", .secondary, "Sign in once with Google",
+                     "A Google sign-in window opens. Sign in with the account you use for Gemini.")
             } else if macMayAsk {
                 note("key.fill", .secondary, "macOS will ask once",
                      "Choose Always Allow so TUM can check \(app.name) without asking again.")
@@ -598,9 +603,12 @@ struct ConnectSheet: View {
                 HStack(spacing: 12) {
                     ActivityRing()
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(needsCursor ? "Waiting for you on cursor.com" : needsGitHub ? "Getting a code from GitHub" : "Connecting").font(.headline)
+                        Text(needsCursor ? "Waiting for you on cursor.com" : needsGitHub ? "Getting a code from GitHub"
+                             : needsGoogle ? "Waiting for you to sign in" : "Connecting").font(.headline)
                         if needsCursor {
                             Text("Click Approve there. This updates on its own.").font(TextStyle.caption).foregroundStyle(.secondary)
+                        } else if needsGoogle {
+                            Text("Sign in in the Google window. It closes on its own.").font(TextStyle.caption).foregroundStyle(.secondary)
                         } else if macMayAsk {
                             Text("If macOS asks, choose Always Allow.").font(TextStyle.caption).foregroundStyle(.secondary)
                         }

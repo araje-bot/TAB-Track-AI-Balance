@@ -42,7 +42,7 @@ enum Catalog {
         CatalogEntry(id: "gemini", name: "Gemini", category: "Chat & code", appNames: ["Gemini"],
                      bundleIDs: [], providerID: "gemini",
                      source: "Gemini CLI sign-in",
-                     hint: "Sign in to Gemini first", symbol: "sparkles"),
+                     hint: "One-time Google sign-in", symbol: "sparkles", markers: [".gemini"]),
         // ChatGPT isn't listed on its own: its limits are the same as Codex's and show there.
         CatalogEntry(id: "perplexity", name: "Perplexity", category: "Search", appNames: ["Perplexity"],
                      bundleIDs: ["ai.perplexity.mac"], providerID: nil, source: "",
@@ -131,7 +131,9 @@ enum Detector {
             // Folders count only for command-line tools TUM can read (Copilot). An app TUM can't
             // read must really be installed: a leftover folder (an old Kiro or Lovable) isn't the app.
             let marked = supported && e.markers.contains { FileManager.default.fileExists(atPath: homeURL($0).path) }
-            if url == nil && !cred && !marked { continue }
+            // Gemini can always sign in, but only shows when it's on this Mac (app, CLI or TUM sign-in).
+            let present = e.id == "gemini" ? (url != nil || marked || GeminiAuth.signedIn) : (url != nil || cred || marked)
+            if !present { continue }
             out.append(AIApp(id: e.id, name: e.name, category: e.category, appURL: url,
                              supported: supported, credentialFound: cred, hint: e.hint, source: e.source))
         }

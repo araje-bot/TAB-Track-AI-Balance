@@ -1060,15 +1060,26 @@ struct CopilotProvider: UsageProvider {
     }
 }
 
-// MARK: Gemini (Gemini CLI sign-in: daily request quota)
+// MARK: Gemini (the Gemini app's 5-hour and weekly limits, or the Gemini CLI's daily quota)
 
+/// Gemini app users (most people) connect with TUM's own Google sign-in (`GeminiAuth`), which
+/// reads the limits gemini.google.com/usage shows. Workspace and Code Assist accounts that still
+/// use the Gemini CLI sign-in keep working through it, read only, without TUM signing in.
 struct GeminiProvider: UsageProvider {
     let id = "gemini"
-    func fetch(interactive: Bool) async throws -> [UsageLimit] { try await fetch() }
     private var file: URL { homeURL(".gemini/oauth_creds.json") }
     let base = "https://cloudcode-pa.googleapis.com/v1internal"
 
-    func credentialAvailable() -> Bool { FileManager.default.fileExists(atPath: file.path) }
+    /// Gemini can always be connected: TUM signs in with Google when nothing works yet.
+    func credentialAvailable() -> Bool { true }
+    /// A Gemini CLI sign-in file is on this Mac.
+    var hasCLISignIn: Bool { FileManager.default.fileExists(atPath: file.path) }
+
+    func fetch(interactive: Bool) async throws -> [UsageLimit] {
+        if GeminiAuth.signedIn { return try await GeminiAuth.fetch(interactive: interactive) }
+        guard hasCLISignIn else { throw ProviderError.notSignedIn("Sign in to Google in TUM to see Gemini's limits.") }
+        return try await fetchCLI()
+    }
 
     private func post(_ path: String, _ body: [String: Any], token: String) async throws -> Any {
         guard let token = headerSafe(token) else { throw ProviderError.notSignedIn("Sign in to Gemini first, then try again.") }
@@ -1080,7 +1091,8 @@ struct GeminiProvider: UsageProvider {
         return try await HTTP.json(req, provider: id)
     }
 
-    func fetch() async throws -> [UsageLimit] {
+    /// The Gemini CLI path: its own sign-in file, read only (never renewed).
+    func fetchCLI() async throws -> [UsageLimit] {
         guard let o = readJSONFile(file), let fileToken = J.dig(o, "access_token") as? String else {
             throw ProviderError.notSignedIn("Sign in to Gemini first, then try again.")
         }
@@ -1094,7 +1106,12 @@ struct GeminiProvider: UsageProvider {
         if let d = project as? [String: Any] { project = d["id"] }
         var body: [String: Any] = [:]
         if let p = project as? String { body["project"] = p }
-        let q = try await post("retrieveUserQuota", body, token: tok)
+        let q: Any
+        do { q = try await post("retrieveUserQuota", body, token: tok) }
+        catch ProviderError.http(let code) where code == 400 {
+            // Google ended the Gemini CLI sign-in for personal, AI Pro and Ultra accounts (2026-06-18).
+            throw ProviderError.notSignedIn("Sign in to Google in TUM to see Gemini's limits.")
+        }
         guard let out = Self.parse(q) else { throw ProviderError.format("Gemini") }
         return out
     }

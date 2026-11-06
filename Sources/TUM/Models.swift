@@ -84,4 +84,6 @@ struct AIApp: Identifiable, Hashable {
     var usesCursorSignIn: Bool { id == "cursor" || id == "grokbot" }
     /// Copilot signs in with GitHub (a one-time code) when nothing is set up on this Mac yet.
     var usesGitHubSignIn: Bool { id == "copilot" }
+    /// Gemini signs in with Google in a TUM window (the Gemini app's limits).
+    var usesGoogleSignIn: Bool { id == "gemini" }
 }

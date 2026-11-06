@@ -24,6 +24,7 @@ enum Palette {
     static let neutralBlue = Color.accentColor
     static let amberText = Pill.amberText
     static let redText = Pill.redText
+    static let connectedText = Pill.connectedText
 
     /// The water in a usage circle: blue when fine, and the Figma pill's yellow and red when low.
     static func water(_ l: Level) -> Color {
@@ -59,6 +60,9 @@ enum Pill {
     static let amberText = adaptive(light: 0x845F00, dark: 0xFFB800)
     static let redText = adaptive(light: 0xB3282E, dark: 0xFF7B7F)
     static let greenText = adaptive(light: 0x1B7536, dark: 0x5EDB82)
+    /// "Connected" (AK): system green in Dark Mode, where it reads well, and the same deeper
+    /// green as `greenText` in Light Mode, where system green is too pale on a card (about 2:1).
+    static let connectedText = adaptive(light: 0x1B7536, dark: 0x30D158)
 
     private static func adaptive(light: UInt32, dark: UInt32) -> Color {
         func ns(_ h: UInt32) -> NSColor {
@@ -299,6 +303,23 @@ enum HTTP {
         let code = (resp as? HTTPURLResponse)?.statusCode ?? 0
         Diagnostics.log("feedback status \(code)")
         return code
+    }
+
+    /// A plain reply (Gemini's starts with ")]}'", so it isn't JSON). Only https, only the
+    /// expected host, no redirects to another host, small replies only, only the status logged.
+    static func raw(_ req: URLRequest, provider: String, host: String, log: Bool = true) async throws -> (Data, HTTPURLResponse) {
+        var r = req
+        r.timeoutInterval = 20
+        guard r.url?.scheme == "https", r.url?.host == host else { throw ProviderError.http(0) }
+        if r.value(forHTTPHeaderField: "User-Agent") == nil { r.setValue("TUM/0.1 (macOS)", forHTTPHeaderField: "User-Agent") }
+        let (data, resp) = try await session.data(for: r)
+        guard data.count <= 1_000_000, let http = resp as? HTTPURLResponse else { throw ProviderError.http(0) }
+        if log { Diagnostics.log("\(provider) status \(http.statusCode)") }
+        if http.statusCode == 429 {
+            let after = http.value(forHTTPHeaderField: "Retry-After").flatMap(Double.init) ?? 0
+            throw ProviderError.rateLimited(Date().addingTimeInterval(min(max(after.isFinite ? after : 0, 300), 86_400)))
+        }
+        return (data, http)
     }
 
     static func json(_ req: URLRequest, provider: String) async throws -> Any {

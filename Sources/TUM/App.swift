@@ -132,7 +132,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var lastFrontURL: URL?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        if let logo = AppLogo.image() { NSApp.applicationIconImage = logo }
+        // Use the icon with Apple's standard margins (824 px art on a 1024 px canvas), so it
+        // matches other Dock icons. The edge-to-edge logo looked oversized in the Dock.
+        if let logo = AppLogo.iconImage() { NSApp.applicationIconImage = logo }
         SQLiteRead.sweepLeftovers()
         store.scan()
 

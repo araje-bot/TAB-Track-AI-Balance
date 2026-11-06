@@ -77,8 +77,12 @@ final class Store: ObservableObject {
     @Published private(set) var shortcutProblem: ShortcutProblem?
     var onShortcutRecording: ((Bool) -> Void)?
 
+    /// The keys pressed in the shortcut box, shown there until Save (AK: see it, then set it).
+    @Published private(set) var pendingShortcut: ShortcutChoice?
+
     func startRecordingShortcut() {
         shortcutProblem = nil
+        pendingShortcut = nil
         guard !recordingShortcut else { return }
         recordingShortcut = true
         onShortcutRecording?(true)
@@ -86,29 +90,36 @@ final class Store: ObservableObject {
 
     func stopRecordingShortcut() {
         shortcutProblem = nil
+        pendingShortcut = nil
         guard recordingShortcut else { return }
         recordingShortcut = false
         onShortcutRecording?(false)
     }
 
-    /// A key press while recording: a good one becomes the shortcut right away; a bad one says why
-    /// and keeps listening.
+    /// A key press in the shortcut box: a good one shows in the box until Save; a bad one says
+    /// why and keeps listening.
     func recorded(_ result: Result<ShortcutChoice, ShortcutProblem>) {
         switch result {
-        case .failure(let p): shortcutProblem = p
-        case .success(let c):
-            recordingShortcut = false
-            shortcutProblem = nil
-            if !ShortcutChoice.presets.contains(c) { customShortcut = c }
-            shortcutChoice = c
-            onShortcutRecording?(false)
+        case .failure(let p): shortcutProblem = p; pendingShortcut = nil
+        case .success(let c): shortcutProblem = nil; pendingShortcut = c
         }
+    }
+
+    /// Save in the shortcut box: the keys shown there become the shortcut.
+    func saveRecordedShortcut() {
+        guard recordingShortcut, let c = pendingShortcut else { return }
+        recordingShortcut = false
+        shortcutProblem = nil
+        pendingShortcut = nil
+        if !ShortcutChoice.presets.contains(c) { customShortcut = c }
+        shortcutChoice = c
+        onShortcutRecording?(false)
     }
 
     /// The "See all apps" subtitle: what to press while recording, a problem, or another app
     /// owning the pick. One line, so the row never changes height (AK).
     func shortcutSubtitle(_ normal: String) -> String {
-        if recordingShortcut { return shortcutProblem?.message ?? "Press ⌘, ⌥ or ⌃ with a key. Esc cancels" }
+        if recordingShortcut { return "Set your own keys in the box that opened" }
         if activeShortcut != shortcutChoice { return "Taken by another app, so \(activeShortcut.glyphs) works" }
         return normal
     }
@@ -267,6 +278,16 @@ final class Store: ObservableObject {
             catch is CancellationError { return "Cancelled." }
             catch { return error.localizedDescription }
         }
+        // Gemini signs in with Google, unless a working Gemini CLI sign-in is already here.
+        if id == "gemini" && !GeminiAuth.signedIn {
+            var cliWorks = false
+            if GeminiProvider().hasCLISignIn { cliWorks = (try? await GeminiProvider().fetchCLI()) != nil }
+            if !cliWorks {
+                do { try await GeminiAuth.signIn(); signedInNow = true }
+                catch is CancellationError { return "Cancelled." }
+                catch { return error.localizedDescription }
+            }
+        }
         if !connected.contains(id) { connected.append(id) }
         errors[id] = nil
         backoff[id] = nil
@@ -283,7 +304,7 @@ final class Store: ObservableObject {
         // A sign-in made just now that didn't end in a working connection is dropped again, so no
         // token stays behind with nothing in TUM to remove it (security review).
         if signedInNow {
-            if id == "copilot" { GitHubAuth.signOut() } else { CursorAuth.signOut() }
+            if id == "copilot" { GitHubAuth.signOut() } else if id == "gemini" { GeminiAuth.signOut() } else { CursorAuth.signOut() }
         }
         return reason
     }
@@ -297,6 +318,7 @@ final class Store: ObservableObject {
         if id == "claude" { ClaudeDesktop.forget() }
         // TUM's own Cursor sign-in goes away once nothing uses it.
         if id == "copilot", self === Store.shared, !Store.isPreview, GitHubAuth.signedIn { GitHubAuth.signOut() }
+        if id == "gemini", self === Store.shared, !Store.isPreview, GeminiAuth.signedIn { GeminiAuth.signOut() }
         // Only when the person removes Cursor or Grok Bot themselves, never as a side effect.
         if id == "cursor" || id == "grokbot",
            self === Store.shared, !Store.isPreview, !connected.contains("cursor"), !connected.contains("grokbot"), CursorAuth.signedIn {
@@ -442,6 +464,8 @@ final class Store: ObservableObject {
             errors[id] = e.errorDescription
             // Cursor ended TUM's sign-in: the card shows Connect again, which opens the browser.
             if case .notSignedIn = e, id == "cursor" || id == "grokbot", !CursorAuth.signedIn { needsApproval.insert(id) }
+            // The same for Gemini when Google ended TUM's sign-in and no Gemini CLI sign-in is here.
+            if case .notSignedIn = e, id == "gemini", !GeminiAuth.signedIn, !GeminiProvider().hasCLISignIn { needsApproval.insert(id) }
             Diagnostics.log("\(id) error: \(Diagnostics.describe(e))")
         } catch {
             noteFailure(id)

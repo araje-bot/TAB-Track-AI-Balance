@@ -78,6 +78,27 @@ enum SelfTest {
               && ZedProvider.header(user: "me@x", token: "fake") == nil && ZedProvider.header(user: "1", token: "a b\nc") == nil)
         check("Zed reply without its usage is rejected", ZedProvider.parse(["plan": ["plan_v3": "zed_free"] as [String: Any]] as [String: Any]) == nil
               && ZedProvider.parse(["plan": ["usage": ["edit_predictions": ["used": 1, "limit": 0] as [String: Any]] as [String: Any]] as [String: Any]] as [String: Any]) == nil)
+        // Gemini app limits through TUM's own Google sign-in (AK, 2026-11-06).
+        let gemReply = #")]}' [{"data":{"viewer":{"rpcs":{"getUsageInfo":{"pools":[{"poolType":"GXU_FIVE_HOURLY","percentageUsed":0.25,"gxu":{"windowRefreshesAt":"2026-11-07T01:00:00Z"}},{"poolType":"GXU_WEEKLY","percentageUsed":0.6}]}}}}}]"#
+        let gem = GeminiAuth.parse(gemReply)
+        check("Gemini app shows 75% of its 5 hours and 40% of its week left",
+              gem?.signedOut == false && gem?.limits.count == 2
+              && gem?.limits.first.map { $0.kind == .short && abs($0.percentLeft - 75) < 0.01 && $0.resetsAt != nil } == true
+              && gem?.limits.last.map { $0.kind == .long && abs($0.percentLeft - 40) < 0.01 } == true)
+        check("Gemini notices a signed-out reply and rejects odd ones",
+              GeminiAuth.parse(#")]}'[{"data":{"viewer":null}}]"#)?.signedOut == true
+              && GeminiAuth.parse("<html>sign in</html>")?.signedOut == true
+              && GeminiAuth.parse(#"[{"data":{"viewer":{"rpcs":{}}}}]"#) == nil && GeminiAuth.parse("x") == nil)
+        let gemCookies = [HTTPCookie(properties: [.name: "SID", .value: "abc", .domain: ".google.com", .path: "/"])!,
+                          HTTPCookie(properties: [.name: "OTHER", .value: "x", .domain: ".example.com", .path: "/"])!,
+                          HTTPCookie(properties: [.name: "BAD", .value: "a b", .domain: ".google.com", .path: "/"])!]
+        let kept = GeminiAuth.keep(gemCookies)
+        let merged = GeminiAuth.merge(kept, [.init(name: "SID", value: "new", domain: ".google.com", path: "/", expires: nil)])
+        check("Gemini keeps only google.com cookies, safe for a header, and takes Google's refreshed ones",
+              kept.map(\.name) == ["SID"] && GeminiAuth.header(kept) == "SID=abc" && GeminiAuth.header(merged) == "SID=new"
+              && GeminiAuth.header([]) == nil && GeminiAuth.usageURL.host == "gemini.google.com"
+              && GeminiAuth.merge(kept, [.init(name: "SID", value: "x", domain: ".google.com", path: "/", expires: Date().addingTimeInterval(-1))]).isEmpty
+              && GeminiAuth.header([.init(name: "SID", value: "old", domain: ".google.com", path: "/", expires: Date().addingTimeInterval(-60))]) == nil)
         check("Unknown reply is rejected, not shown as 0%", CursorProvider.parse(["something": 1] as [String: Any]) == nil && GrokProvider.parse([String: Any]()) == nil && GrokBotProvider.parse("x") == nil)
 
         // Codex's local session file.
@@ -346,10 +367,13 @@ enum SelfTest {
         let rec = Store.preview(apps: [:])
         rec.startRecordingShortcut()
         rec.recorded(.failure(.oneModifier))
-        let saysWhy = rec.shortcutSubtitle("x") == ShortcutProblem.oneModifier.message && rec.recordingShortcut
+        let saysWhy = rec.shortcutProblem == .oneModifier && rec.recordingShortcut && rec.pendingShortcut == nil
         rec.recorded(.success(ctrlK))
-        check("Recording says why a press won't work, then keeps the good one",
-              saysWhy && !rec.recordingShortcut && rec.shortcutChoice == ctrlK && rec.customShortcut == ctrlK)
+        let showsFirst = rec.recordingShortcut && rec.pendingShortcut == ctrlK && rec.shortcutChoice != ctrlK
+        rec.saveRecordedShortcut()
+        check("The shortcut box says why a press won't work, shows the good one, and saves it on Save",
+              saysWhy && showsFirst && !rec.recordingShortcut && rec.shortcutChoice == ctrlK && rec.customShortcut == ctrlK
+              && rec.pendingShortcut == nil)
         // One button size everywhere: icon buttons (Connect, back) match text buttons in height.
         let plug = NSHostingView(rootView: ConnectButton(name: "Test", action: {})).fittingSize
         let back = NSHostingView(rootView: Button("All apps", systemImage: "chevron.left") {}.iconButton()).fittingSize
@@ -484,8 +508,23 @@ enum SelfTest {
         shot(FeedbackPage(back: {}), NSSize(width: 340, height: 400), "dev-feedback")
         let recording = Store.preview(apps: ["claude": 62])
         recording.startRecordingShortcut()
+        shot(ShortcutEditor(store: recording), NSSize(width: 320, height: 230), "dev-shortcut-box")
         recording.recorded(.failure(.usedByMac("⌘ + Q")))
-        shot(OnboardingView(store: recording, finish: {}, startStep: 4), NSSize(width: 800, height: OnboardingView.height), "dev-shortcut-recording")
+        shot(ShortcutEditor(store: recording), NSSize(width: 320, height: 230), "dev-shortcut-box-problem")
+        recording.recorded(.success(ShortcutChoice(modifier: .control, key: "K", keyCode: UInt16(kVK_ANSI_K))))
+        shot(ShortcutEditor(store: recording), NSSize(width: 320, height: 230), "light-shortcut-box-keys", light: true)
+        // The real button styles (not the capture look-alike), in both modes.
+        let wasCapture = ControlMetrics.capture
+        ControlMetrics.capture = false
+        let buttons = HStack(spacing: 10) {
+            Button("All apps", systemImage: "chevron.left") {}.iconButton()
+            ConnectButton(name: "Test", action: {})
+            Button {} label: { ButtonText("Copy diagnostics") }.secondaryButton()
+            Button {} label: { ButtonText("Next") }.primaryButton()
+        }.padding(16)
+        shot(buttons, NSSize(width: 420, height: 64), "dev-buttons")
+        shot(buttons, NSSize(width: 420, height: 64), "light-buttons", light: true)
+        ControlMetrics.capture = wasCapture
         let wide = Store.preview(apps: ["claude": 100, "codex": 100, "copilot": 100, "cursor": 100])
         shot(HoverTip(store: wide), NSSize(width: 360, height: 200), "dev-hover-tip-wide")
         shot(HoverTip(store: yellow), NSSize(width: 380, height: 160), "dev-hover-tip")
