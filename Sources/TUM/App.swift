@@ -276,6 +276,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         autoHide?.cancel()
         store.mode = store.watch   // the quick view shows the default view too (AK)
         quick.show()
+        // The quick view syncs on its own too (AK), like the popover.
+        Task { await store.refreshIfOld() }
         guard let s = seconds else { return }
         let w = DispatchWorkItem { [weak self] in self?.hideQuick() }
         autoHide = w

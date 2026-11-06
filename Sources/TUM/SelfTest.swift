@@ -381,6 +381,16 @@ enum SelfTest {
         let cancelKeeps = rec.shortcutChoice == .commandT && rec.customShortcut == ctrlK
         rec.shortcutChoice = ctrlK
         rec.activeShortcut = ctrlK
+        let syncLine = Store.preview(apps: ["claude": 62])
+        let fresh = syncLine.snapshots["claude"]
+        syncLine.snapshots["claude"] = fresh.map { ProviderSnapshot(limits: $0.limits, fetchedAt: Date()) }
+        let hidesWhenFresh = !syncLine.showsSyncLine("claude")
+        syncLine.snapshots["claude"] = fresh.map { ProviderSnapshot(limits: $0.limits, fetchedAt: Date(timeIntervalSinceNow: -20 * 60)) }
+        let showsWhenOld = syncLine.showsSyncLine("claude")
+        syncLine.snapshots["claude"] = fresh.map { ProviderSnapshot(limits: $0.limits, fetchedAt: Date()) }
+        syncLine.errors["claude"] = "Can't reach Claude right now."
+        check("The sync time shows only when numbers are old or a check failed",
+              hidesWhenFresh && showsWhenOld && syncLine.showsSyncLine("claude"))
         check("Custom always opens the box with the saved keys in it, and Cancel keeps the old pick",
               reopens && cancelKeeps && rec.shortcutSubtitle("x") == "Your own keys, \(ctrlK.glyphs)")
         // One button size everywhere: icon buttons (Connect, back) match text buttons in height.

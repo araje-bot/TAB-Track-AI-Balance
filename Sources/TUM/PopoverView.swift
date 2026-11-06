@@ -277,7 +277,9 @@ struct DetailView: View {
                                 limitRow(l, stale: stale)
                             }
                         }
-                        // The sync line sits apart from the numbers, below a divider (AK).
+                        // The sync line sits apart from the numbers, below a divider (AK), and only
+                        // shows when the numbers are old or a check failed. TUM syncs by itself.
+                        if store.showsSyncLine(id) {
                         Divider()
                         HStack(alignment: .firstTextBaseline, spacing: 10) {
                             Image(systemName: "clock.arrow.circlepath").foregroundStyle(.secondary).frame(width: 16)
@@ -289,6 +291,7 @@ struct DetailView: View {
                                         .fixedSize(horizontal: false, vertical: true)
                                 }
                             }
+                        }
                         }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -316,6 +319,8 @@ struct DetailView: View {
         }
         .padding(16)
         .fixedSize(horizontal: false, vertical: true)
+        // Opening an app's details checks it again if its numbers are over a minute old.
+        .task(id: id) { await store.refreshIfOld(id) }
     }
 
     /// One limit: what's left, in the same color as the water circle, and when it resets at the

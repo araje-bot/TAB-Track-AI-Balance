@@ -353,14 +353,22 @@ final class Store: ObservableObject {
 
     // MARK: Refresh
 
+    /// Every connected app at once, so one slow service never holds up the others.
     func refreshAll() async {
-        for id in connected { await refresh(id) }
+        await withTaskGroup(of: Void.self) { group in
+            for id in connected { group.addTask { await self.refresh(id) } }
+        }
     }
 
-    func refreshIfOld() async {
-        for id in connected {
-            let age = snapshots[id].map { -$0.fetchedAt.timeIntervalSinceNow } ?? .infinity
-            if age > 60 { await refresh(id) }
+    /// Opening TUM syncs on its own (AK): nobody should have to click Sync to see current numbers.
+    /// Anything older than a minute is checked again, all apps at once. Each service's minimum
+    /// gap and any "slow down" reply still hold.
+    func refreshIfOld(_ only: String? = nil) async {
+        await withTaskGroup(of: Void.self) { group in
+            for id in connected where only == nil || id == only {
+                let age = snapshots[id].map { -$0.fetchedAt.timeIntervalSinceNow } ?? .infinity
+                if age > 60 { group.addTask { await self.refresh(id) } }
+            }
         }
     }
 
@@ -813,8 +821,12 @@ final class Store: ObservableObject {
 
     func soonestReset(_ id: String) -> Date? { watchLimit(id)?.resetsAt }
 
+    /// The sync line shows only when something is off (AK): numbers older than 15 minutes, or
+    /// a check that failed. Fresh numbers need no time stamp, so nothing looks like a to-do.
+    func showsSyncLine(_ id: String) -> Bool { isStale(id) || errors[id] != nil }
+
     func updatedText(_ id: String) -> String {
-        if updating.contains(id) { return "Syncing…" }
+        if updating.contains(id) || loading.contains(id) { return "Syncing…" }
         guard let s = snapshots[id] else { return "Not synced yet" }
         // The time of the last real sync, never "just now" for a check you didn't start (AK).
         return "Synced " + Format.at(s.fetchedAt)
