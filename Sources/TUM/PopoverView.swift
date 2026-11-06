@@ -295,14 +295,15 @@ struct DetailView: View {
                 }
             }
 
-            // Remove on the left, Sync on the right, the same size (AK).
+            // Remove and Sync side by side at the right, the same size, with the usual 10pt between
+            // buttons (AK). Remove's text is red: it's the danger action.
             HStack(spacing: 10) {
-                // This screen is about one app, so Remove is a plain button here, in red for the
-                // destructive role (HIG Buttons).
-                Button(role: .destructive) { store.disconnect(id); back() } label: { ButtonText("Remove").frame(width: 96) }
-                    .secondaryButton()
-                    .help("Remove \(store.name(id))")
                 Spacer(minLength: 0)
+                Button(role: .destructive) { store.disconnect(id); back() } label: {
+                    ButtonText("Remove").frame(width: 96).foregroundStyle(Palette.redText)
+                }
+                .secondaryButton()
+                .help("Remove \(store.name(id))")
                 if !needsConnect && reads {
                     Button { Task { await store.syncNow(id) } } label: {
                         ButtonText(store.updating.contains(id) ? "Syncing…" : "Sync").frame(width: 96)

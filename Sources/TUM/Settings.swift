@@ -109,10 +109,8 @@ struct SettingsView: View {
             Section("Quick view") {
                 // A shortcut another app owns is explained in the row's own subtitle, so choosing one
                 // never adds or removes a row and the form doesn't jump (AK).
-                SettingRow("See all apps", subtitle: store.activeShortcut != store.shortcutChoice
-                           ? "Taken by another app, so \(store.activeShortcut.glyphs) works"
-                           : "Keys that show every app at once") {
-                    SegmentedChoice(selection: $store.shortcutChoice, options: ShortcutChoice.segments, label: "Shortcut")
+                SettingRow("See all apps", subtitle: store.shortcutSubtitle("Keys that show every app at once")) {
+                    ShortcutPicker(store: store)
                 }
             }
 

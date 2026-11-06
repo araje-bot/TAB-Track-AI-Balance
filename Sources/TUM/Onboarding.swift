@@ -713,8 +713,8 @@ private struct NudgesStep: View {
                         SegmentedChoice(selection: $store.watch, options: WatchMode.segments, label: "Usage monitoring")
                     }
                     Divider().padding(.horizontal, 6)
-                    settingRow("See all apps", subtitle: "Keys that show every app at once") {
-                        SegmentedChoice(selection: $store.shortcutChoice, options: ShortcutChoice.segments, label: "Shortcut")
+                    settingRow("See all apps", subtitle: store.shortcutSubtitle("Keys that show every app at once")) {
+                        ShortcutPicker(store: store)
                     }
                 }
             }

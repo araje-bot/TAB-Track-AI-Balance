@@ -58,7 +58,7 @@ Or drag TUM from Applications to the Trash.
 
 1. **It finds your AI apps.** TUM checks which supported apps are on your Mac.
 2. **It uses the sign-in you already have.** Most AI apps keep you signed in on your Mac, and TUM uses that, so there is nothing new to log in to. For Cursor, and for GitHub Copilot when it isn't signed in yet, you sign in once in your browser. TUM keeps that sign-in on your Mac and deletes it when you remove the app.
-3. **It asks each app's own company how much is left.** Claude's numbers come from Anthropic, Codex's from OpenAI, and so on. TUM has no server, no account and no analytics, so nothing goes anywhere else.
+3. **It asks each app's own company how much is left.** Claude's numbers come from Anthropic, Codex's from OpenAI, and so on. TUM has no server, no account and no analytics, so nothing goes anywhere else, except feedback you choose to send.
 4. **It shows the answer in your menu bar.** TUM checks again whenever you use an app, and every so often in between.
 
 TUM only asks for usage numbers. It does not save your prompts, chats, files or code, and it does not change the sign-ins other apps keep.
@@ -72,7 +72,7 @@ TUM only asks for usage numbers. It does not save your prompts, chats, files or 
 
 ## Feedback
 
-Click **Any issues? Let us know** at the bottom of TUM. It opens a new issue here on GitHub with your note filled in, so you can check it before you send it. You need a free GitHub account.
+Click **Any issues? Let us know** at the bottom of TUM and type your note. If you have a GitHub account, you can also open an issue here.
 
 ## License
 

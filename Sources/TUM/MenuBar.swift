@@ -437,7 +437,7 @@ final class QuickPanelController {
     var isVisible: Bool { panel.isVisible }
 }
 
-/// The shortcut (⌘ T, ⌥ T or ⌥ Space) shows the quick view from any app. It is a registered shortcut, so macOS
+/// The shortcut (⌘ T, ⌥ T or the person's own) shows the quick view from any app. It is a registered shortcut, so macOS
 /// asks for no permission and TUM never sees any other key you press.
 final class GlanceShortcut {
     var onPress: () -> Void = {}
@@ -453,15 +453,9 @@ final class GlanceShortcut {
     func start(preferred: ShortcutChoice) -> ShortcutChoice? {
         install()
         if let h = hotKey { UnregisterEventHotKey(h); hotKey = nil }
-        let order = [preferred] + ShortcutChoice.allCases.filter { $0 != preferred }
+        let order = [preferred] + ShortcutChoice.fallbacks.filter { $0 != preferred }
         for c in order {
-            let (code, mods): (Int, Int) = {
-                switch c {
-                case .commandT: return (kVK_ANSI_T, cmdKey)
-                case .optionT: return (kVK_ANSI_T, optionKey)
-                case .optionSpace: return (kVK_Space, optionKey)
-                }
-            }()
+            let (code, mods) = (Int(c.keyCode), c.modifier.carbon)
             let id = EventHotKeyID(signature: OSType(0x54554D31), id: 1)   // "TUM1"
             let status = RegisterEventHotKey(UInt32(code), UInt32(mods), id, GetApplicationEventTarget(),
                                              OptionBits(kEventHotKeyExclusive), &hotKey)
@@ -470,6 +464,11 @@ final class GlanceShortcut {
             Diagnostics.log("shortcut \(c.spoken) is taken by another app (\(status))")
         }
         return nil
+    }
+
+    /// Lets go of the shortcut while a new one is being recorded.
+    func pause() {
+        if let h = hotKey { UnregisterEventHotKey(h); hotKey = nil }
     }
 
     private func install() {

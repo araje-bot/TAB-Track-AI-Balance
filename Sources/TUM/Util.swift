@@ -281,6 +281,26 @@ enum HTTP {
         return URLSession(configuration: c, delegate: SameHostRedirects(), delegateQueue: nil)
     }()
 
+    /// Sends a filled-in form (feedback) and returns the status code. Only https, only the
+    /// expected host, nothing logged but the status.
+    static func postForm(_ url: URL, fields: [(String, String)], host: String) async -> Int {
+        guard url.scheme == "https", url.host == host else { return 0 }
+        var r = URLRequest(url: url)
+        r.httpMethod = "POST"
+        r.timeoutInterval = 20
+        r.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
+        r.setValue("TUM/0.1 (macOS)", forHTTPHeaderField: "User-Agent")
+        // ASCII only: every other character, accents and emoji included, is percent-encoded.
+        let allowed = CharacterSet(charactersIn: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._*")
+        r.httpBody = fields.map { k, v in
+            "\(k.addingPercentEncoding(withAllowedCharacters: allowed) ?? "")=\(v.addingPercentEncoding(withAllowedCharacters: allowed) ?? "")"
+        }.joined(separator: "&").data(using: .utf8)
+        guard let (_, resp) = try? await session.data(for: r) else { Diagnostics.log("feedback: no connection"); return 0 }
+        let code = (resp as? HTTPURLResponse)?.statusCode ?? 0
+        Diagnostics.log("feedback status \(code)")
+        return code
+    }
+
     static func json(_ req: URLRequest, provider: String) async throws -> Any {
         var r = req
         r.timeoutInterval = 20
@@ -380,6 +400,18 @@ enum Format {
         if cal.isDateInToday(d) { f.dateFormat = cal.component(.minute, from: d) == 0 ? "h a" : "h:mm a"; return f.string(from: d) }
         if d.timeIntervalSinceNow < 6 * 86400 { f.dateFormat = "EEEE"; return f.string(from: d) }
         f.dateFormat = "MMM d"; return f.string(from: d)
+    }
+
+    /// A moment in the past: "at 3:04 PM", "yesterday at 3:04 PM", "Nov 5 at 3:04 PM".
+    static func at(_ d: Date) -> String {
+        let cal = Calendar.current
+        let f = DateFormatter()
+        f.dateFormat = "h:mm a"
+        let time = f.string(from: d)
+        if cal.isDateInToday(d) { return "at " + time }
+        if cal.isDateInYesterday(d) { return "yesterday at " + time }
+        f.dateFormat = "MMM d"
+        return f.string(from: d) + " at " + time
     }
 
     static func ago(_ d: Date) -> String {

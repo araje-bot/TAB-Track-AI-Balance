@@ -65,9 +65,53 @@ final class Store: ObservableObject {
     /// Off by default: TUM changes its icon and does not pop things up unless asked.
     @Published var headsUpOnOpen: Bool { didSet { defaults.set(headsUpOnOpen, forKey: "headsUpOnOpen") } }
     /// The shortcut the person picked, and the one actually working (another app may own the pick).
-    @Published var shortcutChoice: ShortcutChoice { didSet { defaults.set(shortcutChoice.rawValue, forKey: "shortcutChoice"); onShortcutChange?() } }
+    @Published var shortcutChoice: ShortcutChoice { didSet { defaults.set(shortcutChoice.stored, forKey: "shortcutChoice"); onShortcutChange?() } }
     @Published var activeShortcut: ShortcutChoice = .commandT
     var onShortcutChange: (() -> Void)?
+    /// The person's own shortcut from Custom, kept even while a preset is picked.
+    @Published var customShortcut: ShortcutChoice? { didSet { defaults.set(customShortcut?.stored, forKey: "customShortcut") } }
+    /// True while Custom waits for keys. The working shortcut is paused meanwhile, so pressing it
+    /// records it instead of opening the quick view.
+    @Published private(set) var recordingShortcut = false
+    /// Why the last key press can't be the shortcut, shown in the row while recording.
+    @Published private(set) var shortcutProblem: ShortcutProblem?
+    var onShortcutRecording: ((Bool) -> Void)?
+
+    func startRecordingShortcut() {
+        shortcutProblem = nil
+        guard !recordingShortcut else { return }
+        recordingShortcut = true
+        onShortcutRecording?(true)
+    }
+
+    func stopRecordingShortcut() {
+        shortcutProblem = nil
+        guard recordingShortcut else { return }
+        recordingShortcut = false
+        onShortcutRecording?(false)
+    }
+
+    /// A key press while recording: a good one becomes the shortcut right away; a bad one says why
+    /// and keeps listening.
+    func recorded(_ result: Result<ShortcutChoice, ShortcutProblem>) {
+        switch result {
+        case .failure(let p): shortcutProblem = p
+        case .success(let c):
+            recordingShortcut = false
+            shortcutProblem = nil
+            if !ShortcutChoice.presets.contains(c) { customShortcut = c }
+            shortcutChoice = c
+            onShortcutRecording?(false)
+        }
+    }
+
+    /// The "See all apps" subtitle: what to press while recording, a problem, or another app
+    /// owning the pick. One line, so the row never changes height (AK).
+    func shortcutSubtitle(_ normal: String) -> String {
+        if recordingShortcut { return shortcutProblem?.message ?? "Press ⌘, ⌥ or ⌃ with a key. Esc cancels" }
+        if activeShortcut != shortcutChoice { return "Taken by another app, so \(activeShortcut.glyphs) works" }
+        return normal
+    }
     /// TUM is always in the Dock while one of its windows is open. This keeps it there all the time.
     @Published var alwaysInDock: Bool { didSet { defaults.set(alwaysInDock, forKey: "alwaysInDock"); onDockSettingChange?() } }
     var onDockSettingChange: (() -> Void)?
@@ -133,7 +177,11 @@ final class Store: ObservableObject {
             defaults.set(true, forKey: "shortcutDefaultCommandT")
             defaults.removeObject(forKey: "shortcutChoice")
         }
-        shortcutChoice = ShortcutChoice(rawValue: defaults.string(forKey: "shortcutChoice") ?? "") ?? .commandT
+        let choice = ShortcutChoice(stored: defaults.string(forKey: "shortcutChoice") ?? "") ?? .commandT
+        shortcutChoice = choice
+        // ⌥ Space was a preset before Custom existed; it now lives in the Custom slot.
+        customShortcut = defaults.string(forKey: "customShortcut").flatMap(ShortcutChoice.init(stored:))
+            ?? (ShortcutChoice.presets.contains(choice) ? nil : choice)
         alwaysInDock = defaults.bool(forKey: "alwaysInDock")
     }
 
@@ -741,7 +789,8 @@ final class Store: ObservableObject {
     func updatedText(_ id: String) -> String {
         if updating.contains(id) { return "Syncing…" }
         guard let s = snapshots[id] else { return "Not synced yet" }
-        return "Synced " + Format.ago(s.fetchedAt)
+        // The time of the last real sync, never "just now" for a check you didn't start (AK).
+        return "Synced " + Format.at(s.fetchedAt)
     }
 
     /// "Sync" from the More menu or the detail screen. A manual check skips the local Codex

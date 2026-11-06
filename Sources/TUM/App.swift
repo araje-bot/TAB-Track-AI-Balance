@@ -150,6 +150,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         updateDock()
         // When a TUM window closes, leave the Dock unless the person wants TUM there.
         NotificationCenter.default.addObserver(forName: NSWindow.willCloseNotification, object: nil, queue: .main) { [weak self] _ in
+            // A window closing mid-recording must never leave the shortcut switched off.
+            MainActor.assumeIsolated { self?.store.stopRecordingShortcut() }
             DispatchQueue.main.async { self?.updateDock() }
         }
         quick = QuickPanelController(store: store)
@@ -160,6 +162,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             if let c = self.shortcut.start(preferred: self.store.shortcutChoice) { self.store.activeShortcut = c }
         }
         store.onShortcutChange = { DispatchQueue.main.async { applyShortcut() } }
+        store.onShortcutRecording = { [weak self] recording in
+            DispatchQueue.main.async { if recording { self?.shortcut.pause() } else { applyShortcut() } }
+        }
         applyShortcut()
 
         // Check an app right after it is used: its files change, or you switch away from it.

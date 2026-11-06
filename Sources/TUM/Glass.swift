@@ -281,6 +281,8 @@ struct SegmentedChoice<T: Hashable>: View {
     var label: String = ""
     /// Fill the available width (popover) instead of fitting the labels.
     var switchesView = false
+    /// Called when the option that's already chosen is clicked again.
+    var reselect: ((T) -> Void)? = nil
 
     @Namespace private var pill
     @Environment(\.colorScheme) private var scheme
@@ -325,7 +327,7 @@ struct SegmentedChoice<T: Hashable>: View {
     }
 
     private func choose(_ value: T) {
-        guard value != selection else { return }
+        guard value != selection else { reselect?(value); return }
         withAnimation(.spring(response: 0.32, dampingFraction: 0.82)) { selection = value }
     }
 
@@ -378,29 +380,6 @@ private struct EqualWidthRow: Layout {
 
 extension WatchMode {
     static var segments: [(WatchMode, String)] { allCases.map { ($0, $0.rawValue) } }
-}
-
-/// Two-key shortcuts for the quick view (AK: never more than two keys). None need a permission.
-/// ⌘T is the default (AK's pick, knowing it takes ⌘T from other apps while TUM runs).
-enum ShortcutChoice: String, CaseIterable {
-    case commandT, optionT, optionSpace
-    var keys: [String] {
-        switch self {
-        case .commandT: return ["⌘", "T"]
-        case .optionT: return ["⌥", "T"]
-        case .optionSpace: return ["⌥", "Space"]
-        }
-    }
-    var spoken: String {
-        switch self {
-        case .commandT: return "Command T"
-        case .optionT: return "Option T"
-        case .optionSpace: return "Option Space"
-        }
-    }
-    /// Keys with a "+" between them ("⌘ + T"), so it's clear they're pressed together (AK).
-    var glyphs: String { keys.joined(separator: " + ") }
-    static var segments: [(ShortcutChoice, String)] { allCases.map { ($0, $0.glyphs) } }
 }
 
 /// "Turn yellow at" choices. Red is automatic at 10%, so yellow always starts above it.

@@ -1,6 +1,7 @@
 import SwiftUI
 import AppKit
 import MachO
+import Carbon.HIToolbox
 import Security
 
 /// `TUM --self-test` checks the parts most likely to break, without the network
@@ -297,8 +298,39 @@ enum SelfTest {
               fb.hasPrefix(Feedback.repo + "/issues/new?title=Feedback") && fb.contains("%2B") && fb.contains("body=")
               && Feedback.issueURL("   \n ") == nil
               && (Feedback.issueURL(String(repeating: "🙂", count: 2000))?.absoluteString.utf8.count ?? .max) <= Feedback.maxURLLength)
+        let savedForm = Feedback.config
+        Feedback.config = .init(formID: "1FAIpQLSd_fakeFormIdForTheSelfTest0123", message: "entry.111", email: "entry.222", version: "entry.333")
+        let pre = Feedback.formURL("Pill + stays", email: "a@b.co")?.absoluteString ?? ""
+        let formOK = Feedback.config.ready && pre.hasPrefix("https://docs.google.com/forms/d/e/1FAIpQLSd_fakeFormIdForTheSelfTest0123/viewform?usp=pp_url")
+            && pre.contains("entry.111=Pill%20%2B%20stays") && !pre.contains("a@b.co")
+        Feedback.config = savedForm
+        check("Feedback goes to the team's form with no account; reply email is optional and checked",
+              formOK && Feedback.replyEmail(" a@b.co ") == "a@b.co" && Feedback.replyEmail("not an email") == nil
+              && !Feedback.Config(formID: "x/../evil", message: "entry.1", email: "entry.2", version: "entry.3").ready)
         check("ChatGPT is never listed on its own", !Detector.scan().contains { $0.name.localizedCaseInsensitiveContains("ChatGPT") })
-        check("Shortcuts are two keys, \u{2318}T first", ShortcutChoice.allCases.allSatisfy { $0.keys.count == 2 } && ShortcutChoice.allCases.first == .commandT)
+        // Custom shortcut rules (AK): one of ⌘, ⌥ or ⌃ plus one letter, number or Space.
+        func try_(_ m: [ShortcutChoice.Modifier], _ k: String, _ c: Int) -> ShortcutProblem? {
+            if case .failure(let p) = ShortcutChoice.check(modifiers: m, key: k, keyCode: UInt16(c)) { return p }
+            return nil
+        }
+        check("Custom shortcut: two keys, a letter, number or Space, nothing macOS needs",
+              try_([.control], "K", kVK_ANSI_K) == nil && try_([.option], "Space", kVK_Space) == nil && try_([.command], "5", kVK_ANSI_5) == nil
+              && try_([], "K", kVK_ANSI_K) == .needsModifier && try_([.command, .option], "K", kVK_ANSI_K) == .oneModifier
+              && try_([.option], "É", kVK_ANSI_E) == .plainKey && try_([.command], "Q", kVK_ANSI_Q) == .usedByMac("⌘ + Q")
+              && try_([.command], "Space", kVK_Space) == .usedByMac("⌘ + Space"))
+        let ctrlK = ShortcutChoice(modifier: .control, key: "K", keyCode: UInt16(kVK_ANSI_K))
+        check("Shortcuts save and load, old names too, \u{2318}T first",
+              ShortcutChoice(stored: ctrlK.stored) == ctrlK && ShortcutChoice(stored: "optionSpace") == .optionSpace
+              && ShortcutChoice(stored: "option:T:53") == nil
+              && ShortcutChoice(stored: "command:Q:12") == nil && ShortcutChoice.presets.first == .commandT
+              && ShortcutChoice.presets.allSatisfy { $0.keys.count == 2 })
+        let rec = Store.preview(apps: [:])
+        rec.startRecordingShortcut()
+        rec.recorded(.failure(.oneModifier))
+        let saysWhy = rec.shortcutSubtitle("x") == ShortcutProblem.oneModifier.message && rec.recordingShortcut
+        rec.recorded(.success(ctrlK))
+        check("Recording says why a press won't work, then keeps the good one",
+              saysWhy && !rec.recordingShortcut && rec.shortcutChoice == ctrlK && rec.customShortcut == ctrlK)
         // One button size everywhere: icon buttons (Connect, back) match text buttons in height.
         let plug = NSHostingView(rootView: ConnectButton(name: "Test", action: {})).fittingSize
         let back = NSHostingView(rootView: Button("All apps", systemImage: "chevron.left") {}.iconButton()).fittingSize
@@ -421,7 +453,15 @@ enum SelfTest {
         waiting.connect("perplexity")
         shot(DetailView(store: waiting, id: "perplexity", back: {}), NSSize(width: 340, height: 440), "dev-detail-no-data")
         shot(SettingsView(store: yellow), NSSize(width: 580, height: 660), "dev-settings")
-        shot(FeedbackPage(back: {}), NSSize(width: 340, height: 330), "dev-feedback")
+        shot(FeedbackPage(back: {}), NSSize(width: 340, height: 330), "dev-feedback-github")
+        let formBefore = Feedback.config
+        Feedback.config = .init(formID: "1FAIpQLSd_fakeFormIdForTheSelfTest0123", message: "entry.1", email: "entry.2", version: "entry.3")
+        shot(FeedbackPage(back: {}), NSSize(width: 340, height: 400), "dev-feedback")
+        Feedback.config = formBefore
+        let recording = Store.preview(apps: ["claude": 62])
+        recording.startRecordingShortcut()
+        recording.recorded(.failure(.usedByMac("⌘ + Q")))
+        shot(OnboardingView(store: recording, finish: {}, startStep: 4), NSSize(width: 800, height: OnboardingView.height), "dev-shortcut-recording")
         let wide = Store.preview(apps: ["claude": 100, "codex": 100, "copilot": 100, "cursor": 100])
         shot(HoverTip(store: wide), NSSize(width: 360, height: 200), "dev-hover-tip-wide")
         shot(HoverTip(store: yellow), NSSize(width: 380, height: 160), "dev-hover-tip")
