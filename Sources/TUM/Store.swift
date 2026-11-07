@@ -772,9 +772,16 @@ final class Store: ObservableObject {
 
     /// The apps on the current tab (AK): only those with a limit of that period. Apps with no
     /// numbers yet stay, so a sign-in problem or "Connect" is never hidden.
-    var tabApps: [String] {
-        displayOrder.filter { snapshots[$0] == nil || hasLimit($0, for: mode) }
+    var tabApps: [String] { apps(on: mode) }
+
+    /// The apps a tab lists: those with a limit of that period, plus any with no numbers yet.
+    func apps(on m: WatchMode) -> [String] {
+        displayOrder.filter { snapshots[$0] == nil || hasLimit($0, for: m) }
     }
+
+    /// The most apps any tab lists. The popover is sized for this, so switching tabs never
+    /// resizes it (AK: leaving Monthly made the title, tabs and bottom jump).
+    var mostTabApps: Int { WatchMode.allCases.map { apps(on: $0).count }.max() ?? 0 }
 
     /// "Got it" on the recommendation (AK): the line goes away and the green pill turns back
     /// into the white icon, until a new reset comes up.

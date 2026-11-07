@@ -13,10 +13,13 @@ struct PopoverView: View {
     @State private var detailHeight: CGFloat = 420
     @State private var feedback = false
 
-    /// Grows with the number of apps instead of always being tall.
+    /// Grows with the number of apps instead of always being tall. Sized for the fullest tab, so
+    /// every tab has the same height: when a tab change resized the popover, macOS set the new
+    /// window size at once while the content was still squeezed, and the title, tabs and bottom
+    /// row flickered (AK, leaving Monthly).
     private var height: CGFloat {
         if store.connected.isEmpty { return 300 }
-        let rows = CGFloat((max(store.tabApps.count, 1) + 2) / 3)
+        let rows = CGFloat((max(store.mostTabApps, 1) + 2) / 3)
         // The status line's text shares its row with a small check button, so long lines wrap.
         let alertLine: CGFloat = store.summary.isAlert ? (store.summary.text.count > 36 ? 72 : 52) : 0
         return min(494, 190 + alertLine + rows * 118)
