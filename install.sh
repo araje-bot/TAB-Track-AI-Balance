@@ -1,10 +1,10 @@
 #!/bin/bash
 # Installs TAB (Track AI Balance) on a Mac.
 #
-#   curl -fsSL https://raw.githubusercontent.com/araje-bot/TAB-Track-AI-Balance/v0.1.0/install.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/araje-bot/TAB-Track-AI-Balance/v0.1.1/install.sh | bash
 #
 # What it does, in order:
-#   1. Downloads one exact release (TAB-0.1.0.dmg) from github.com over HTTPS.
+#   1. Downloads one exact release (TAB-0.1.1.dmg) from github.com over HTTPS.
 #   2. Checks the file against the SHA-256 fingerprint written below. Anything else is deleted.
 #   3. Opens the disk image read-only and checks the app's signature and bundle id.
 #   4. Copies TAB.app into /Applications (or ~/Applications), replacing an older TAB, and opens it.
@@ -16,16 +16,16 @@
 #           --no-open   don't open TAB at the end
 set -euo pipefail
 
-readonly VERSION="0.1.0"
+readonly VERSION="0.1.1"
 readonly REPO="araje-bot/TAB-Track-AI-Balance"
 readonly APP_NAME="TAB"
 readonly BUNDLE_ID="edu.umd.inst474.tab"
-# TAB was called TUM before 0.1.0 shipped. An old TUM.app is quit and moved to the Trash.
+# TAB was called TUM in 0.1.0. An old TUM.app is quit and moved to the Trash.
 readonly OLD_NAME="TUM"
 readonly OLD_BUNDLE_ID="edu.umd.inst474.tum"
 readonly DMG_NAME="${APP_NAME}-${VERSION}.dmg"
 readonly DMG_URL="https://github.com/${REPO}/releases/download/v${VERSION}/${DMG_NAME}"
-# The SHA-256 of TAB-0.1.0.dmg. make_dmg.sh --update-installer writes it here for each release.
+# The SHA-256 of TAB-0.1.1.dmg. make_dmg.sh --update-installer writes it here for each release.
 readonly DMG_SHA256="3a0612e8a50e101f29440cd06b25f3bf5877279ba75b3d43345f5bc6f4737779"
 
 TMP=""
