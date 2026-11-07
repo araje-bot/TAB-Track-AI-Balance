@@ -1,23 +1,23 @@
 #!/bin/bash
-# Builds a universal TUM.app (Apple silicon + Intel) and packages it as a drag-to-install DMG.
+# Builds a universal TAB.app (Apple silicon + Intel) and packages it as a drag-to-install DMG.
 #
-#   ./make_dmg.sh                      -> build/TUM-0.1.0.dmg (signed only on this Mac)
+#   ./make_dmg.sh                      -> build/TAB-0.1.0.dmg (signed only on this Mac)
 #
 # For a DMG that opens on any Mac without warnings (needs a paid Apple Developer account):
-#   DEVELOPER_ID="Developer ID Application: Your Name (TEAMID)" NOTARY_PROFILE="tum-notary" ./make_dmg.sh
-#   (create the profile once with: xcrun notarytool store-credentials tum-notary)
+#   DEVELOPER_ID="Developer ID Application: Your Name (TEAMID)" NOTARY_PROFILE="tab-notary" ./make_dmg.sh
+#   (create the profile once with: xcrun notarytool store-credentials tab-notary)
 #   ./make_dmg.sh --allow-dirty        build with uncommitted changes (local testing only)
 #   ./make_dmg.sh --update-installer   write the new DMG's SHA-256 into install.sh
 set -euo pipefail
 cd "$(dirname "$0")"
 # Everything this script prints also goes to build-log.txt, with home folder paths shortened to ~.
 exec > >(sed -l "s#$HOME#~#g" | tee build-log.txt) 2>&1
-echo "TUM build $(date)  macOS $(sw_vers -productVersion)  $(uname -m)"
+echo "TAB build $(date)  macOS $(sw_vers -productVersion)  $(uname -m)"
 echo "Developer tools: $(xcode-select -p 2>/dev/null || echo 'not installed')"
 
 VERSION="0.1.0"
-APP_NAME="TUM"
-BUNDLE_ID="edu.umd.inst474.tum"
+APP_NAME="TAB"
+BUNDLE_ID="edu.umd.inst474.tab"
 
 ALLOW_DIRTY=0; UPDATE_INSTALLER=0
 for a in "$@"; do
@@ -97,7 +97,7 @@ lipo -info "$BIN"
 echo "2/5 Assembling $APP_NAME.app..."
 # Assemble and sign outside Desktop: Desktop and iCloud folders add hidden
 # Finder data to files, and macOS refuses to sign an app that has it.
-WORK="$(mktemp -d "${TMPDIR:-/tmp}/tum-build.XXXXXX")"
+WORK="$(mktemp -d "${TMPDIR:-/tmp}/tab-build.XXXXXX")"
 trap 'rm -rf "$WORK"' EXIT
 APP="$WORK/$APP_NAME.app"
 rm -rf build && mkdir -p build "$APP/Contents/MacOS" "$APP/Contents/Resources"
@@ -116,11 +116,11 @@ cat > "$APP/Contents/Info.plist" <<PLIST
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>CFBundleShortVersionString</key><string>$VERSION</string>
   <key>CFBundleVersion</key><string>$BUILD_NUMBER</string>
-  <key>TUMGitCommit</key><string>$COMMIT</string>
+  <key>TabGitCommit</key><string>$COMMIT</string>
   <key>LSMinimumSystemVersion</key><string>13.0</string>
   <key>LSUIElement</key><true/>
   <key>NSHighResolutionCapable</key><true/>
-  <key>NSHumanReadableCopyright</key><string>TUM · Token Utilization Monitor</string>
+  <key>NSHumanReadableCopyright</key><string>TAB · Track AI Balance</string>
 </dict>
 </plist>
 PLIST
@@ -128,7 +128,7 @@ PLIST
 echo "3/5 Making the app icon..."
 ICONSET="$WORK/AppIcon.iconset"
 mkdir -p "$ICONSET"
-if TUM_BUILD_TOOLS=1 "$BIN" --export-icon "$WORK/icon_1024.png"; then
+if TAB_BUILD_TOOLS=1 "$BIN" --export-icon "$WORK/icon_1024.png"; then
   for s in 16 32 128 256 512; do
     sips -z $s $s "$WORK/icon_1024.png" --out "$ICONSET/icon_${s}x${s}.png" >/dev/null
     sips -z $((s*2)) $((s*2)) "$WORK/icon_1024.png" --out "$ICONSET/icon_${s}x${s}@2x.png" >/dev/null
@@ -154,7 +154,7 @@ if ! "$APP/Contents/MacOS/$APP_NAME" --self-test; then
   exit 1
 fi
 echo "   Saving screen pictures for design review..."
-TUM_BUILD_TOOLS=1 "$APP/Contents/MacOS/$APP_NAME" --snapshots "$(pwd)/build-snapshots" || echo "   (pictures skipped)"
+TAB_BUILD_TOOLS=1 "$APP/Contents/MacOS/$APP_NAME" --snapshots "$(pwd)/build-snapshots" || echo "   (pictures skipped)"
 
 echo "5/5 Creating DMG..."
 STAGE="$WORK/dmg"
@@ -195,6 +195,6 @@ else
   echo "For a release, run   ./make_dmg.sh --update-installer   so install.sh checks for this exact file."
 fi
 if [[ -z "${DEVELOPER_ID:-}" ]]; then
-  echo "Note: this DMG is signed only on this Mac. On other Macs, right-click TUM in Applications and choose Open the first time."
+  echo "Note: this DMG is signed only on this Mac. On other Macs, right-click TAB in Applications and choose Open the first time."
 fi
 open -R "$DMG" || true

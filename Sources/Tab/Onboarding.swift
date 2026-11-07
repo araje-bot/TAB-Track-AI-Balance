@@ -30,10 +30,10 @@ struct OnboardingView: View {
 
     private func header(_ step: Int) -> (String, String) {
         switch step {
-        case 1: return ("Welcome to TUM", "Know how much AI you have left, in every app you use.")
-        case 2: return ("How TUM works", "Three steps, then it stays quietly in your menu bar.")
-        case 3: return ("Which AI apps do you use?", store.connected.isEmpty ? "Connect at least one to continue." : "Connect the ones you want TUM to watch.")
-        default: return ("When should TUM nudge you?", "The icon turns yellow when an app runs low. Nothing pops up.")
+        case 1: return ("Welcome to TAB", "Know how much AI you have left, in every app you use.")
+        case 2: return ("How TAB works", "Three steps, then it stays quietly in your menu bar.")
+        case 3: return ("Which AI apps do you use?", store.connected.isEmpty ? "Connect at least one to continue." : "Connect the ones you want TAB to watch.")
+        default: return ("When should TAB nudge you?", "The icon turns yellow when an app runs low. Nothing pops up.")
         }
     }
 
@@ -136,17 +136,17 @@ private struct WelcomeStep: View {
         HStack(alignment: .center, spacing: 40) {
             VStack(spacing: 14) {
                 AppLogo(size: 120, flowing: true)
-                Text("Token Utilization Monitor").font(.headline).foregroundStyle(.secondary)
+                Text("Track AI Balance").font(.headline).foregroundStyle(.secondary)
             }
             .frame(width: 280)
-            // Three separate cards, like the steps on "How TUM works" (AK), each with a hairline border.
+            // Three separate cards, like the steps on "How TAB works" (AK), each with a hairline border.
             VStack(spacing: 18) {
                 benefit("gauge.with.needle.fill", "See what's left at a glance",
                         "For AI apps on your Mac, not websites")
                 benefit("bell.badge.fill", "Quiet until it matters",
                         "Turns yellow, then red, when an app runs low")
                 benefit("lock.shield.fill", "Your info stays secure",
-                        "No TUM server. Sign-ins go only to their app")
+                        "No TAB server. Sign-ins go only to their app")
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -159,7 +159,7 @@ private struct WelcomeStep: View {
                 // Large filled symbols, like Apple's own welcome screens (AK: better, bigger icons).
                 Image(systemName: symbol).symbolRenderingMode(.hierarchical).foregroundStyle(.tint)
                     .font(.largeTitle).frame(width: 48)
-                // Same sizes as the step text on "How TUM works": body text for the line (AK).
+                // Same sizes as the step text on "How TAB works": body text for the line (AK).
                 VStack(alignment: .leading, spacing: 4) {
                     Text(title).font(.headline).foregroundStyle(.primary)
                     Text(detail).font(.body).foregroundStyle(.secondary)
@@ -195,7 +195,7 @@ private struct HowStep: View {
     var body: some View {
         HStack(alignment: .top, spacing: 14) {
             card(1, "Connect the AI apps you pay for") { appsVisual }
-            card(2, "TUM checks how much each app has left") {
+            card(2, "TAB checks how much each app has left") {
                 HStack(spacing: 10) {
                     LiquidTile(pct: 46, level: .ok, glyph: store.glyph(store.demoID), symbol: store.symbol(store.demoID), size: 48)
                     Image(systemName: "arrow.right").foregroundStyle(.secondary)
@@ -363,7 +363,7 @@ private struct AppsStep: View {
         }
     }
 
-    /// Two groups (AK): apps on this Mac that TUM can read, ready to connect, and "Coming soon",
+    /// Two groups (AK): apps on this Mac that TAB can read, ready to connect, and "Coming soon",
     /// apps on this Mac it can't read yet plus the apps it plans to support. No numbers, no Connect.
     private var grid: some View {
         let ready = store.readyToConnect
@@ -406,7 +406,7 @@ struct GroupTitle: View {
     }
 }
 
-/// An app TUM can't show yet: the same card as a supported app (same shape, size, icon and
+/// An app TAB can't show yet: the same card as a supported app (same shape, size, icon and
 /// text), with no Connect button. Dimmed, with a grayed-out icon, and not clickable (AK).
 struct ComingSoonCard: View {
     @ObservedObject var store: Store
@@ -418,7 +418,7 @@ struct ComingSoonCard: View {
                 AppTile(icon: store.icon(app.id), symbol: store.symbol(app.id), size: 36)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(app.name).font(.headline).lineLimit(1)
-                    // How TUM plans to support it, in one short line (never "Coming soon" again).
+                    // How TAB plans to support it, in one short line (never "Coming soon" again).
                     Text(app.hint).font(.subheadline).foregroundStyle(.secondary).lineLimit(1)
                 }
                 Spacer(minLength: 4)
@@ -470,14 +470,14 @@ struct AppCard: View {
         if app.usesCursorSignIn && !CursorAuth.signedIn { return app.hint }
         if app.usesGitHubSignIn && !GitHubAuth.signedIn && !CopilotProvider().hasLocalSignIn() { return app.hint }
         if app.usesGoogleSignIn && !GeminiAuth.signedIn && !GeminiProvider().hasCLISignIn { return app.hint }
-        // Apps TUM can't read yet say so up front, so connecting one is an informed choice.
+        // Apps TAB can't read yet say so up front, so connecting one is an informed choice.
         if !app.supported { return app.hint }
         return app.canConnect ? app.category : app.hint
     }
 
     private func refresh() { Task { await store.syncNow(app.id) } }
     private func remove() { withAnimation { store.disconnect(app.id) } }
-    /// Nil for apps TUM can't read yet, so their menu has no Sync.
+    /// Nil for apps TAB can't read yet, so their menu has no Sync.
     private var syncAction: (() -> Void)? {
         guard store.readsUsage(app.id) else { return nil }
         return refresh
@@ -515,7 +515,7 @@ struct ConnectSheet: View {
         default: return false
         }
     }
-    /// Cursor and Grok Bot need a one-time sign-in in the browser (TUM's own, in the Keychain).
+    /// Cursor and Grok Bot need a one-time sign-in in the browser (TAB's own, in the Keychain).
     private var needsCursor: Bool { app.usesCursorSignIn && !CursorAuth.signedIn }
     private var needsGitHub: Bool { app.usesGitHubSignIn && !GitHubAuth.signedIn && !CopilotProvider().hasLocalSignIn() }
     private var needsGoogle: Bool { app.usesGoogleSignIn && !GeminiAuth.signedIn }
@@ -539,10 +539,10 @@ struct ConnectSheet: View {
                         // Nothing to read yet, so the sheet says plainly what connecting does (AK).
                         InfoRow(symbol: "square.grid.2x2", text: "Keep it in your list with your other apps")
                         Divider()
-                        InfoRow(symbol: "clock.badge.checkmark", text: "Its numbers show up once TUM supports it")
+                        InfoRow(symbol: "clock.badge.checkmark", text: "Its numbers show up once TAB supports it")
                     }
                     Divider()
-                    InfoRow(symbol: "eye.slash", text: "TUM never saves or sends your prompts or work")
+                    InfoRow(symbol: "eye.slash", text: "TAB never saves or sends your prompts or work")
                     Divider()
                     InfoRow(symbol: "lock", text: "It can't change anything. Remove it anytime")
                 }
@@ -581,18 +581,18 @@ struct ConnectSheet: View {
         case .ready:
             if needsGitHub {
                 note("safari", .secondary, "Sign in once with GitHub",
-                     "TUM shows a short code and opens github.com. Paste it there and approve.")
+                     "TAB shows a short code and opens github.com. Paste it there and approve.")
             } else if needsCursor {
                 note("safari", .secondary, "Sign in once in your browser",
-                     "TUM opens cursor.com. Click Approve, then come back here.")
+                     "TAB opens cursor.com. Click Approve, then come back here.")
             } else if needsGoogle {
                 note("person.crop.circle", .secondary, "Sign in once with Google",
                      "A Google sign-in window opens. Sign in with the account you use for Gemini.")
             } else if macMayAsk {
                 note("key.fill", .secondary, "macOS will ask once",
-                     "Choose Always Allow so TUM can check \(app.name) without asking again.")
+                     "Choose Always Allow so TAB can check \(app.name) without asking again.")
             } else if !app.supported {
-                Text("Nothing to sign in to. TUM can't read \(app.name)'s usage yet.").font(TextStyle.caption).foregroundStyle(.secondary)
+                Text("Nothing to sign in to. TAB can't read \(app.name)'s usage yet.").font(TextStyle.caption).foregroundStyle(.secondary)
             } else {
                 Text("Uses the \(app.name) account you're already signed in to").font(TextStyle.caption).foregroundStyle(.secondary)
             }
@@ -620,7 +620,7 @@ struct ConnectSheet: View {
         case .connected:
             note("checkmark.circle.fill", Palette.green, "You're all set", app.supported
                  ? "\(app.name) now shows in your menu bar."
-                 : "\(app.name) is in your list. Its numbers come once TUM supports it.")
+                 : "\(app.name) is in your list. Its numbers come once TAB supports it.")
         case .failed:
             note("exclamationmark.circle.fill", Palette.redText, "Couldn't connect", reason)
         }
@@ -642,7 +642,7 @@ struct ConnectSheet: View {
         }
     }
 
-    /// The GitHub code, big and easy to copy, while the person approves TUM on github.com.
+    /// The GitHub code, big and easy to copy, while the person approves TAB on github.com.
     private func githubCodeCard(_ code: GitHubAuth.DeviceCode) -> some View {
         Card {
             VStack(spacing: 10) {
@@ -716,7 +716,7 @@ private struct NudgesStep: View {
             // The rows bring their own 10pt form inset, so the card needs less padding of its own.
             Card(padding: 6) {
                 VStack(spacing: 0) {
-                    settingRow("Usage monitoring", subtitle: "Which limit TUM watches for you") {
+                    settingRow("Usage monitoring", subtitle: "Which limit TAB watches for you") {
                         SegmentedChoice(selection: $store.watch, options: WatchMode.segments, label: "Usage monitoring")
                     }
                     Divider().padding(.horizontal, 6)

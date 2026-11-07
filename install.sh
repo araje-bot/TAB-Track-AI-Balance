@@ -1,28 +1,31 @@
 #!/bin/bash
-# Installs TUM (Token Utilization Monitor) on a Mac.
+# Installs TAB (Track AI Balance) on a Mac.
 #
-#   curl -fsSL https://raw.githubusercontent.com/araje-bot/TUM-Token-Utilization-Monitor/v0.1.0/install.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/araje-bot/TAB-Track-AI-Balance/v0.1.0/install.sh | bash
 #
 # What it does, in order:
-#   1. Downloads one exact release (TUM-0.1.0.dmg) from github.com over HTTPS.
+#   1. Downloads one exact release (TAB-0.1.0.dmg) from github.com over HTTPS.
 #   2. Checks the file against the SHA-256 fingerprint written below. Anything else is deleted.
 #   3. Opens the disk image read-only and checks the app's signature and bundle id.
-#   4. Copies TUM.app into /Applications (or ~/Applications), replacing an older TUM, and opens it.
+#   4. Copies TAB.app into /Applications (or ~/Applications), replacing an older TAB, and opens it.
 #
 # It never asks for your password, never uses sudo, changes no system settings, and downloads
 # nothing else. Everything happens in a private temporary folder that is removed at the end.
 #
 # Options:  --yes       install without asking
-#           --no-open   don't open TUM at the end
+#           --no-open   don't open TAB at the end
 set -euo pipefail
 
 readonly VERSION="0.1.0"
-readonly REPO="araje-bot/TUM-Token-Utilization-Monitor"
-readonly APP_NAME="TUM"
-readonly BUNDLE_ID="edu.umd.inst474.tum"
+readonly REPO="araje-bot/TAB-Track-AI-Balance"
+readonly APP_NAME="TAB"
+readonly BUNDLE_ID="edu.umd.inst474.tab"
+# TAB was called TUM before 0.1.0 shipped. An old TUM.app is quit and moved to the Trash.
+readonly OLD_NAME="TUM"
+readonly OLD_BUNDLE_ID="edu.umd.inst474.tum"
 readonly DMG_NAME="${APP_NAME}-${VERSION}.dmg"
 readonly DMG_URL="https://github.com/${REPO}/releases/download/v${VERSION}/${DMG_NAME}"
-# The SHA-256 of TUM-0.1.0.dmg. make_dmg.sh --update-installer writes it here for each release.
+# The SHA-256 of TAB-0.1.0.dmg. make_dmg.sh --update-installer writes it here for each release.
 readonly DMG_SHA256="4bcff2864a46c1ee52275a8418866a7b68d1f9aebc7763f96bdaa50af85dde2f"
 
 TMP=""
@@ -45,13 +48,13 @@ detach_dmg() {
 
 cleanup() {
   detach_dmg
-  if [[ -n "$TMP" && -d "$TMP" && "$TMP" == *tum-install.* ]]; then rm -rf "$TMP"; fi
+  if [[ -n "$TMP" && -d "$TMP" && "$TMP" == *tab-install.* ]]; then rm -rf "$TMP"; fi
   return 0
 }
 
 usage() {
   say "Usage: install.sh [--yes] [--no-open]"
-  say "Installs TUM $VERSION into /Applications (or ~/Applications)."
+  say "Installs TAB $VERSION into /Applications (or ~/Applications)."
 }
 
 # Asks on the terminal even when the script itself arrives through a pipe (curl | bash).
@@ -67,13 +70,13 @@ ask_yes() {
 }
 
 check_macos() {
-  [[ "$(uname -s)" == "Darwin" ]] || fail "TUM runs on macOS only."
+  [[ "$(uname -s)" == "Darwin" ]] || fail "TAB runs on macOS only."
   (( $(id -u) != 0 )) || fail "Run this as your normal user, without sudo."
   local v major
   v="$(sw_vers -productVersion)"
   major="${v%%.*}"
   [[ "$major" =~ ^[0-9]+$ ]] || fail "Couldn't read the macOS version."
-  (( major >= 13 )) || fail "TUM needs macOS 13 or later. This Mac has macOS $v."
+  (( major >= 13 )) || fail "TAB needs macOS 13 or later. This Mac has macOS $v."
 }
 
 check_tools() {
@@ -95,7 +98,7 @@ pick_target_dir() {
   fi
 }
 
-# Only ever replaces a TUM. A link, a file, or another app with the same name stops the install.
+# Only ever replaces a TAB. A link, a file, or another app with the same name stops the install.
 check_target() {
   local t="$1"
   if [[ -L "$t" ]]; then fail "$t is a link, not an app. Remove it, then run this again."; fi
@@ -138,25 +141,25 @@ verify_app() {
   codesign --verify --strict --deep "$app" 2>/dev/null \
     || fail "The app's signature doesn't check out, so nothing was installed."
   id="$(bundle_id "$app" || true)"
-  [[ "$id" == "$BUNDLE_ID" ]] || fail "The app inside isn't TUM (${id:-no bundle id}), so nothing was installed."
+  [[ "$id" == "$BUNDLE_ID" ]] || fail "The app inside isn't TAB (${id:-no bundle id}), so nothing was installed."
   version="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$app/Contents/Info.plist" 2>/dev/null || true)"
-  [[ "$version" == "$VERSION" ]] || fail "The app inside is TUM ${version:-?}, not $VERSION, so nothing was installed."
+  [[ "$version" == "$VERSION" ]] || fail "The app inside is TAB ${version:-?}, not $VERSION, so nothing was installed."
   info="$(codesign -d --verbose=2 "$app" 2>&1 || true)"
   signed_as="$(printf '%s\n' "$info" | awk -F= '/^Identifier=/ {print $2}')"
   [[ "$signed_as" == "$BUNDLE_ID" ]] \
     || fail "The app's signature belongs to a different app (${signed_as:-unknown}), so nothing was installed."
   flags="$(printf '%s\n' "$info" | awk '/^CodeDirectory/ { for (i = 1; i <= NF; i++) if ($i ~ /^flags=/) print $i }')"
   [[ "$flags" == *runtime* ]] || fail "The app was built without the hardened runtime, so nothing was installed."
-  say "App checked: TUM $version, signature and bundle id are right."
+  say "App checked: TAB $version, signature and bundle id are right."
 }
 
-# Quits a running TUM by bundle id (never by process name), and only if one is running, so a TUM
+# Quits a running TAB by bundle id (never by process name), and only if one is running, so a TAB
 # that isn't running is never launched just to be quit. A copy that ignores the request is
-# stopped by its exact path, since a still-running old TUM would keep the new one from opening.
+# stopped by its exact path, since a still-running old TAB would keep the new one from opening.
 quit_running() {
   local pattern="/${APP_NAME}\.app/Contents/MacOS/${APP_NAME}\$" i pid
   pgrep -qf "$pattern" || return 0
-  say "Quitting the running TUM…"
+  say "Quitting the running TAB…"
   osascript -e "quit app id \"$BUNDLE_ID\"" >/dev/null 2>&1 || true
   for i in 1 2 3 4 5 6; do
     pgrep -qf "$pattern" || return 0
@@ -175,18 +178,38 @@ install_app() {
   local src="$1" dir="$2"
   local target="$dir/$APP_NAME.app" staging="$dir/.$APP_NAME.app.installing.$$"
   if [[ -e "$staging" ]]; then rm -rf "$staging"; fi
-  ditto "$src" "$staging" || { rm -rf "$staging"; fail "Couldn't copy TUM into $dir."; }
+  ditto "$src" "$staging" || { rm -rf "$staging"; fail "Couldn't copy TAB into $dir."; }
   codesign --verify --strict --deep "$staging" 2>/dev/null \
     || { rm -rf "$staging"; fail "The copied app doesn't check out, so nothing was installed."; }
   if [[ -e "$target" ]]; then
     # macOS 13 and later can ask before Terminal changes an app in /Applications.
     mv "$target" "$TMP/$APP_NAME-old.app" || {
       rm -rf "$staging"
-      fail "macOS didn't let this Terminal replace the old TUM. Drag TUM from $dir to the Trash and run this again, or allow Terminal under System Settings › Privacy & Security › App Management."
+      fail "macOS didn't let this Terminal replace the old TAB. Drag TAB from $dir to the Trash and run this again, or allow Terminal under System Settings › Privacy & Security › App Management."
     }
   fi
-  mv "$staging" "$target" || fail "Couldn't put TUM into $dir."
+  mv "$staging" "$target" || fail "Couldn't put TAB into $dir."
   say "Installed $target"
+}
+
+# Moves an old TUM.app (TAB's name before the rename) to the Trash. TAB brings its settings
+# and sign-ins over on first launch. Only an app with TUM's exact bundle id is ever moved.
+retire_old() {
+  local dir="$1" app="$1/$OLD_NAME.app" dest i
+  [[ -d "$app" && ! -L "$app" ]] || return 0
+  [[ "$(bundle_id "$app" || true)" == "$OLD_BUNDLE_ID" ]] || return 0
+  osascript -e "quit app id \"$OLD_BUNDLE_ID\"" >/dev/null 2>&1 || true
+  for i in 1 2 3 4 5 6; do
+    pgrep -qf "/${OLD_NAME}\.app/Contents/MacOS/${OLD_NAME}\$" || break
+    sleep 0.5
+  done
+  dest="$HOME/.Trash/$OLD_NAME.app"
+  if [[ -e "$dest" ]]; then dest="$HOME/.Trash/$OLD_NAME $(date +%Y-%m-%d-%H%M%S).app"; fi
+  if mv "$app" "$dest" 2>/dev/null; then
+    say "Moved the old TUM to the Trash. TAB keeps its settings and sign-ins."
+  else
+    say "The old TUM is still in $dir. Drag it to the Trash; TAB already has its settings."
+  fi
 }
 
 main() {
@@ -207,19 +230,19 @@ main() {
   dir="$(pick_target_dir)"
   target="$dir/$APP_NAME.app"
 
-  say "This installs TUM $VERSION, a menu bar app that shows how much AI usage you have left."
+  say "This installs TAB $VERSION, a menu bar app that shows how much AI usage you have left."
   say "It will:"
   say "  1. Download $DMG_NAME from github.com and check it against a known fingerprint."
   say "  2. Check the app's signature."
-  say "  3. Put TUM in $dir, replacing any older TUM there, and open it."
+  say "  3. Put TAB in $dir, replacing any older TAB there (or TUM, its old name), and open it."
   say "It never asks for your password and changes nothing else on your Mac."
   say ""
   if (( ! yes )); then
-    ask_yes "Install TUM? (y/n) " || { say "OK, nothing was installed."; exit 0; }
+    ask_yes "Install TAB? (y/n) " || { say "OK, nothing was installed."; exit 0; }
   fi
 
   check_target "$target"
-  TMP="$(mktemp -d "${TMPDIR:-/tmp}/tum-install.XXXXXX")"
+  TMP="$(mktemp -d "${TMPDIR:-/tmp}/tab-install.XXXXXX")"
   chmod 700 "$TMP"
   trap cleanup EXIT
   download
@@ -227,18 +250,19 @@ main() {
   verify_app "$MNT/$APP_NAME.app"
   quit_running
   install_app "$MNT/$APP_NAME.app" "$dir"
+  retire_old "$dir"
   # Let go of the disk image before opening, so macOS only knows the installed copy.
   detach_dmg
 
   if (( open_after )); then
     if open "$target" 2>/dev/null; then
-      say "TUM is opening. Look for its round icon at the right end of the menu bar."
+      say "TAB is opening. Look for its round icon at the right end of the menu bar."
     else
-      say "Open TUM from $dir to start it."
+      say "Open TAB from $dir to start it."
     fi
   fi
   say ""
-  say "To uninstall later, drag TUM from $dir to the Trash, or run:"
+  say "To uninstall later, drag TAB from $dir to the Trash, or run:"
   say "  curl -fsSL https://raw.githubusercontent.com/$REPO/v$VERSION/uninstall.sh | bash"
 }
 

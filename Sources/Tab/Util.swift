@@ -61,7 +61,7 @@ enum Pill {
     /// Healthy water in the usage circles, matched to the amber and red liquids.
     static let blueLiquid = Color(hex: 0x4FA3FF)
 
-    /// Text in the water colors (AK), readable on TUM's cards in both modes (WCAG AA, 4.5:1 or
+    /// Text in the water colors (AK), readable on TAB's cards in both modes (WCAG AA, 4.5:1 or
     /// more). Dark Mode uses the liquids themselves (red a touch lighter to reach 4.5:1 on a
     /// card); Light Mode uses deeper shades of the same hues.
     static let amberText = adaptive(light: 0x845F00, dark: 0xFFB800)
@@ -171,10 +171,10 @@ enum J {
 }
 
 /// Writes HTTP status and JSON key names (never values or tokens) to
-/// ~/Library/Logs/TUM/diagnostics.log so broken parsers can be fixed.
+/// ~/Library/Logs/TAB/diagnostics.log so broken parsers can be fixed.
 enum Diagnostics {
-    static let url = homeURL("Library/Logs/TUM/diagnostics.log")
-    private static let queue = DispatchQueue(label: "tum.diagnostics")
+    static let url = homeURL("Library/Logs/TAB/diagnostics.log")
+    private static let queue = DispatchQueue(label: "tab.diagnostics")
     private static let maxBytes = 512 * 1024
 
     private static let maxLine = 2000
@@ -231,7 +231,7 @@ enum Diagnostics {
         log("\(provider) HTTP \(status) keys: \(keys.joined(separator: ", "))")
     }
 
-    /// A short, safe note about any error for the log: TUM's own error kinds by name, anything
+    /// A short, safe note about any error for the log: TAB's own error kinds by name, anything
     /// else by domain and code. Never the error's text, which can hold names or paths.
     static func describe(_ error: Error) -> String {
         if let p = error as? ProviderError {
@@ -269,8 +269,8 @@ enum ProviderError: LocalizedError {
         switch self {
         case .notSignedIn(let m): return m
         case .expired(let m): return m
-        case .http(let c): return "This service isn't responding right now (\(c)). TUM will try again."
-        case .format(let n): return "\(n) changed how it shows usage. Update TUM to see it again."
+        case .http(let c): return "This service isn't responding right now (\(c)). TAB will try again."
+        case .format(let n): return "\(n) changed how it shows usage. Update TAB to see it again."
         case .rateLimited: return "Checking again in a few minutes."
         case .denied(let m): return m
         case .needsApproval: return "One more click to finish connecting."
@@ -300,7 +300,7 @@ enum HTTP {
         r.httpMethod = "POST"
         r.timeoutInterval = 20
         r.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
-        r.setValue("TUM/0.1 (macOS)", forHTTPHeaderField: "User-Agent")
+        r.setValue("TAB/0.1 (macOS)", forHTTPHeaderField: "User-Agent")
         // ASCII only: every other character, accents and emoji included, is percent-encoded.
         let allowed = CharacterSet(charactersIn: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._*")
         r.httpBody = fields.map { k, v in
@@ -318,7 +318,7 @@ enum HTTP {
         var r = req
         r.timeoutInterval = 20
         guard r.url?.scheme == "https", r.url?.host == host else { throw ProviderError.http(0) }
-        if r.value(forHTTPHeaderField: "User-Agent") == nil { r.setValue("TUM/0.1 (macOS)", forHTTPHeaderField: "User-Agent") }
+        if r.value(forHTTPHeaderField: "User-Agent") == nil { r.setValue("TAB/0.1 (macOS)", forHTTPHeaderField: "User-Agent") }
         let (data, resp) = try await session.data(for: r)
         guard data.count <= 1_000_000, let http = resp as? HTTPURLResponse else { throw ProviderError.http(0) }
         if log { Diagnostics.log("\(provider) status \(http.statusCode)") }
@@ -333,10 +333,10 @@ enum HTTP {
         var r = req
         r.timeoutInterval = 20
         guard r.url?.scheme == "https" else { throw ProviderError.http(0) }
-        if r.value(forHTTPHeaderField: "User-Agent") == nil { r.setValue("TUM/0.1 (macOS)", forHTTPHeaderField: "User-Agent") }
+        if r.value(forHTTPHeaderField: "User-Agent") == nil { r.setValue("TAB/0.1 (macOS)", forHTTPHeaderField: "User-Agent") }
         r.setValue("application/json", forHTTPHeaderField: "Accept")
         let (data, resp) = try await session.data(for: r)
-        // Usage replies are small. Anything huge is not what TUM asked for.
+        // Usage replies are small. Anything huge is not what TAB asked for.
         guard data.count <= 1_000_000 else { throw ProviderError.http(0) }
         let code = (resp as? HTTPURLResponse)?.statusCode ?? 0
         let obj = try? JSONSerialization.jsonObject(with: data)
@@ -361,7 +361,7 @@ enum HTTP {
             let after = (resp as? HTTPURLResponse)?.value(forHTTPHeaderField: "Retry-After").flatMap(Double.init) ?? 0
             throw ProviderError.rateLimited(Date().addingTimeInterval(min(max(after.isFinite ? after : 0, 300), 86_400)))
         }
-        if code == 401 || code == 403 { throw ProviderError.expired("Open the app once, then TUM can check it again.") }
+        if code == 401 || code == 403 { throw ProviderError.expired("Open the app once, then TAB can check it again.") }
         guard (200..<300).contains(code), let o = obj else { throw ProviderError.http(code) }
         return o
     }
@@ -379,7 +379,7 @@ private final class SameHostRedirects: NSObject, URLSessionTaskDelegate {
     }
 }
 
-/// Checks on files TUM reads, which anything on this Mac could have written.
+/// Checks on files TAB reads, which anything on this Mac could have written.
 enum Files {
     /// Far more than any sign-in or settings file needs.
     static let maxReadBytes = 16 * 1024 * 1024

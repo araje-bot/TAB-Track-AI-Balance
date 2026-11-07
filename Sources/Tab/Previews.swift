@@ -2,7 +2,7 @@
 import SwiftUI
 import AppKit
 
-// Xcode canvas for every TUM screen and state, with sample data.
+// Xcode canvas for every TAB screen and state, with sample data.
 // Open TUMApp/Package.swift in Xcode, open this file, then press ⌥⌘↩ to show the canvas
 // (⌥⌘P refreshes it). Pick a preview from the tabs at the top of the canvas.
 // Previews never read sign-ins or call any service (see Store.isPreview).
@@ -10,7 +10,7 @@ import AppKit
 // MARK: Helpers
 
 private extension View {
-    /// Looks like a TUM window: dark, with the window background.
+    /// Looks like a TAB window: dark, with the window background.
     func previewWindow(_ w: CGFloat, _ h: CGFloat) -> some View {
         frame(width: w, height: h)
             .background(Color(nsColor: .windowBackgroundColor))

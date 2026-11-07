@@ -1,13 +1,13 @@
 import SwiftUI
 import AppKit
 
-public enum TUMMain {
+public enum TabMain {
     @MainActor public static func main() {
         // Used by make_dmg.sh to produce the app icon file.
         let args = CommandLine.arguments
-        // Build-tool flags write files, so they only work when the build scripts set TUM_BUILD_TOOLS=1
+        // Build-tool flags write files, so they only work when the build scripts set TAB_BUILD_TOOLS=1
         // (security review L12). `--self-test` writes nothing and always works.
-        let buildTools = ProcessInfo.processInfo.environment["TUM_BUILD_TOOLS"] == "1"
+        let buildTools = ProcessInfo.processInfo.environment["TAB_BUILD_TOOLS"] == "1"
         if buildTools, let i = args.firstIndex(of: "--export-icon"), i + 1 < args.count {
             if let img = AppLogo.iconImage(),
                let tiff = img.tiffRepresentation,
@@ -20,18 +20,18 @@ public enum TUMMain {
         if args.contains("--self-test") { exit(SelfTest.run() ? 0 : 1) }
         if buildTools, let i = args.firstIndex(of: "--snapshots"), i + 1 < args.count { SelfTest.snapshots(to: args[i + 1]); exit(0) }
 
-        // TUM's windows never use tabs. This also stops macOS from trying to index window tabs,
+        // TAB's windows never use tabs. This also stops macOS from trying to index window tabs,
         // which logs "missing main bundle identifier" when Xcode runs the bare debug executable.
         NSWindow.allowsAutomaticWindowTabbing = false
 
-        // Only one TUM at a time. If one is already running, ask it to show itself.
+        // Only one TAB at a time. If one is already running, ask it to show itself.
         // (Debug builds do the opposite below: the newest copy wins.)
         #if !DEBUG
         if let bid = Bundle.main.bundleIdentifier {
             let others = NSRunningApplication.runningApplications(withBundleIdentifier: bid)
                 .filter { $0.processIdentifier != ProcessInfo.processInfo.processIdentifier }
             if !others.isEmpty {
-                Diagnostics.logNow("another TUM is already running: asking it to show itself, this copy quits")
+                Diagnostics.logNow("another TAB is already running: asking it to show itself, this copy quits")
                 DistributedNotificationCenter.default().postNotificationName(AppDelegate.showNotice, object: nil, userInfo: nil, deliverImmediately: true)
                 exit(0)
             }
@@ -39,14 +39,14 @@ public enum TUMMain {
         #endif
 
         #if DEBUG
-        // Debug builds (Xcode ⌘R or dev.sh): quit every other debug copy, so only one TUM Dev
+        // Debug builds (Xcode ⌘R or dev.sh): quit every other debug copy, so only one TAB Dev
         // icon is in the menu bar.
-        // Only other debug copies: "TUM Dev" from dev.sh, or a bare Xcode build (LaunchServices
-        // doesn't know its bundle id). The real TUM from the DMG is never touched (AK).
+        // Only other debug copies: "TAB Dev" from dev.sh, or a bare Xcode build (LaunchServices
+        // doesn't know its bundle id). The real TAB from the DMG is never touched (AK).
         let me = ProcessInfo.processInfo.processIdentifier
         NSWorkspace.shared.runningApplications
-            .filter { $0.processIdentifier != me && $0.executableURL?.lastPathComponent == "TUM"
-                      && $0.bundleIdentifier != "edu.umd.inst474.tum" }
+            .filter { $0.processIdentifier != me && $0.executableURL?.lastPathComponent.lowercased() == "tab"
+                      && $0.bundleIdentifier != "edu.umd.inst474.tab" }
             .forEach { kill($0.processIdentifier, SIGKILL) }
         #endif
 
@@ -55,6 +55,8 @@ public enum TUMMain {
         NSSetUncaughtExceptionHandler { e in
             Diagnostics.logNow("crash: \(e.name.rawValue) \((e.reason ?? "").prefix(200))")
         }
+        // TAB was called TUM: bring its settings over once and quit an old TUM still running.
+        Rename.run()
         LaunchGuard.begin()
 
         let app = NSApplication.shared
@@ -92,7 +94,7 @@ final class WindowHost: NSObject, NSWindowDelegate {
         }
         if #available(macOS 26.0, *) {
             // An empty toolbar gives the window the larger, rounder Liquid Glass corners.
-            window.toolbar = NSToolbar(identifier: "tum.window")
+            window.toolbar = NSToolbar(identifier: "tab.window")
             window.toolbarStyle = .unified
         }
         window.contentView = NSHostingView(rootView: root)
@@ -118,7 +120,7 @@ final class WindowHost: NSObject, NSWindowDelegate {
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
-    static let showNotice = Notification.Name("edu.umd.inst474.tum.show")
+    static let showNotice = Notification.Name("edu.umd.inst474.tab.show")
     let store = Store.shared
     private var status: StatusItemController!
     private var quick: QuickPanelController!
@@ -148,7 +150,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         setUpMainMenu()
         store.onDockSettingChange = { [weak self] in self?.updateDock() }
         updateDock()
-        // When a TUM window closes, leave the Dock unless the person wants TUM there.
+        // When a TAB window closes, leave the Dock unless the person wants TAB there.
         NotificationCenter.default.addObserver(forName: NSWindow.willCloseNotification, object: nil, queue: .main) { [weak self] _ in
             // A window closing mid-recording must never leave the shortcut switched off.
             MainActor.assumeIsolated { self?.store.stopRecordingShortcut() }
@@ -206,7 +208,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             Task { @MainActor in await self?.store.refreshAll() }
         }
 
-        // Opening TUM again (Finder, Spotlight, a second copy) always shows something.
+        // Opening TAB again (Finder, Spotlight, a second copy) always shows something.
         DistributedNotificationCenter.default().addObserver(forName: Self.showNotice, object: nil, queue: .main) { [weak self] _ in
             Task { @MainActor in self?.showSomething() }
         }
@@ -262,7 +264,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var autoHide: DispatchWorkItem?
 
     /// Hold the shortcut (⌘ + T by default) to see every app, and let go to hide it (AK). The
-    /// release comes from the same registered shortcut, so TUM still never watches the keyboard.
+    /// release comes from the same registered shortcut, so TAB still never watches the keyboard.
     /// A held key can repeat the press, so showing again while open does nothing.
     private func shortcutPressed() {
         autoHide?.cancel()   // a heads-up already showing stays for as long as the keys are held
@@ -295,7 +297,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     // MARK: Dock and menus
 
-    /// In the Dock (with a TUM menu and ⌘Q) while a TUM window is open, or always if chosen in Settings.
+    /// In the Dock (with a TAB menu and ⌘Q) while a TAB window is open, or always if chosen in Settings.
     func updateDock() {
         let windowOpen = [onboarding, settings].contains { $0?.window.isVisible == true }
         let want: NSApplication.ActivationPolicy = (store.alwaysInDock || windowOpen) ? .regular : .accessory
@@ -306,17 +308,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let main = NSMenu()
 
         let appItem = NSMenuItem()
-        let appMenu = NSMenu(title: "TUM")
-        appMenu.addItem(withTitle: "About TUM", action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)), keyEquivalent: "")
+        let appMenu = NSMenu(title: "TAB")
+        appMenu.addItem(withTitle: "About TAB", action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)), keyEquivalent: "")
         appMenu.addItem(.separator())
         let s = appMenu.addItem(withTitle: "Settings…", action: #selector(menuSettings), keyEquivalent: ",")
         s.target = self
         let w = appMenu.addItem(withTitle: "Show welcome screens", action: #selector(menuWelcome), keyEquivalent: "")
         w.target = self
         appMenu.addItem(.separator())
-        appMenu.addItem(withTitle: "Hide TUM", action: #selector(NSApplication.hide(_:)), keyEquivalent: "h")
+        appMenu.addItem(withTitle: "Hide TAB", action: #selector(NSApplication.hide(_:)), keyEquivalent: "h")
         appMenu.addItem(.separator())
-        appMenu.addItem(withTitle: "Quit TUM", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        appMenu.addItem(withTitle: "Quit TAB", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         appItem.submenu = appMenu
         main.addItem(appItem)
 
@@ -343,7 +345,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private func menuSettings() { showSettings() }
     @objc private func menuWelcome() { showOnboarding() }
 
-    /// Clicking the Dock icon shows TUM, like any other app.
+    /// Clicking the Dock icon shows TAB, like any other app.
     func applicationDockMenu(_ sender: NSApplication) -> NSMenu? {
         let m = NSMenu()
         let s = m.addItem(withTitle: "Settings…", action: #selector(menuSettings), keyEquivalent: "")
@@ -396,7 +398,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 }
 
-/// Notices when the previous launch didn't get going (crashed early), so TUM
+/// Notices when the previous launch didn't get going (crashed early), so TAB
 /// starts in a safe mode next time instead of failing again.
 enum LaunchGuard {
     private static let key = "launchInProgress"

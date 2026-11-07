@@ -32,7 +32,7 @@ struct WaveShape: Shape {
     }
 }
 
-/// TUM's "all good" mark: a round tank with a waterline.
+/// TAB's "all good" mark: a round tank with a waterline.
 struct TankMark: View {
     var size: CGFloat = 16
     var color: Color = .primary
@@ -50,7 +50,7 @@ struct TankMark: View {
     }
 }
 
-/// The TUM app logo (Ocean option from the prototype).
+/// The TAB app logo (Ocean option from the prototype).
 struct AppLogo: View {
     var size: CGFloat = 88
     /// The water moves, like the usage circles (welcome screen, AK). The app icon export stays still.
@@ -230,7 +230,7 @@ struct LiquidDot: View {
     private var level: Double { max(0.12, min(1, pct / 100)) }
 }
 
-/// Motion used across TUM: Apple's smooth spring (no bounce, natural slow-down).
+/// Motion used across TAB: Apple's smooth spring (no bounce, natural slow-down).
 enum Motion {
     static let standard: Animation = {
         if #available(macOS 14.0, *) { return .smooth(duration: 0.45) }
@@ -276,7 +276,7 @@ struct MorphMark: View {
         case .low: return "Getting low, \(p) percent left"
         case .out: return "Almost out, \(p) percent left"
         case .use: return "Resets soon with \(p) percent unused"
-        case .ok: return "TUM, all good"
+        case .ok: return "TAB, all good"
         }
     }
 
@@ -316,7 +316,7 @@ struct MorphMark: View {
         .animation(Motion.morph, value: level)
         .animation(Motion.morph, value: pct)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(isPill ? Self.spoken(level, pct) : "TUM, all good")
+        .accessibilityLabel(isPill ? Self.spoken(level, pct) : "TAB, all good")
     }
 }
 
@@ -502,7 +502,7 @@ func statusText(_ s: String) -> Text {
 /// No confirmation, since connecting again undoes it. Right-click on the row offers the same items.
 struct AppMenu: View {
     let name: String
-    /// Nil for apps TUM can't read yet: there is nothing to sync, so the menu only offers Remove.
+    /// Nil for apps TAB can't read yet: there is nothing to sync, so the menu only offers Remove.
     let refresh: (() -> Void)?
     let remove: () -> Void
     @State private var anchor = MenuAnchor.Holder()

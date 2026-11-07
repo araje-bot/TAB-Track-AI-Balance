@@ -6,7 +6,7 @@ import CryptoKit
 import LocalAuthentication
 import AppKit
 
-/// One AI service TUM can read. Like OpenUsage, TUM uses the sign-in each app already
+/// One AI service TAB can read. Like OpenUsage, TAB uses the sign-in each app already
 /// keeps on this Mac, so nobody signs in again. Tokens are sent only to that company.
 protocol UsageProvider {
     var id: String { get }
@@ -61,7 +61,7 @@ enum JWT {
 /// Keychain reads that never show a prompt unless the person just clicked something.
 enum Keychain {
     /// Background (silent) reads are off until onboarding is finished, so nothing can ask for
-    /// Keychain access before TUM has explained why. Only a Connect or Allow click reads earlier.
+    /// Keychain access before TAB has explained why. Only a Connect or Allow click reads earlier.
     static var silentReadsAllowed = false
     private static let uiLock = NSLock()
 
@@ -151,7 +151,7 @@ enum Keychain {
         return SecItemCopyMatching(q as CFDictionary, &out) == errSecSuccess
     }
 
-    /// Changes one of TUM's own items. In the background (`interactive` false) macOS may never
+    /// Changes one of TAB's own items. In the background (`interactive` false) macOS may never
     /// ask; the change just fails and the caller sees the status (security review L8).
     static func update(service: String, account: String? = nil, data: Data, interactive: Bool) -> OSStatus {
         var q: [String: Any] = [kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: service]
@@ -167,9 +167,58 @@ enum Keychain {
         return SecItemUpdate(q as CFDictionary, change)
     }
 
-    /// Deletes one of TUM's own items and says whether it worked.
+    /// Deletes one of TAB's own items and says whether it worked.
     static func delete(service: String) -> OSStatus {
         SecItemDelete([kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: service] as CFDictionary)
+    }
+
+    // MARK: TAB's own items (TAB was called TUM until 2026-11-06)
+
+    /// The name one of TAB's own items had before the rename ("TUM Cursor sign-in").
+    static func oldName(_ service: String) -> String? {
+        service.hasPrefix("TAB ") ? "TUM " + service.dropFirst(4) : nil
+    }
+
+    /// Whether one of TAB's own items exists, under its new or old name. Never prompts.
+    static func ownExists(service: String) -> Bool {
+        exists(service: service) || (oldName(service).map { exists(service: $0) } ?? false)
+    }
+
+    /// Reads one of TAB's own items. When only the old TUM item is there, it is copied to the
+    /// new name and the old one removed, so nothing needs reconnecting. Same rules as `read`:
+    /// silent unless the person just clicked, and nothing before onboarding is done.
+    static func readOwn(service: String, account: String, interactive: Bool) -> (status: OSStatus, data: Data?) {
+        let r = read(service: service, account: account, interactive: interactive)
+        guard r.status == errSecItemNotFound, let old = oldName(service), exists(service: old) else { return r }
+        let o = read(service: old, account: account, interactive: interactive)
+        guard o.status == errSecSuccess, let data = o.data else { return o }
+        let add: [String: Any] = [kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: service,
+                                  kSecAttrAccount as String: account, kSecAttrLabel as String: service,
+                                  kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly,
+                                  kSecValueData as String: data]
+        let added = SecItemAdd(add as CFDictionary, nil)
+        if added == errSecSuccess { quietDelete(service: old) }
+        Diagnostics.log(added == errSecSuccess ? "keychain: moved a sign-in to its TAB name" : "keychain: move failed (\(added))")
+        return (errSecSuccess, data)
+    }
+
+    /// Deletes one of TAB's own items under both names.
+    static func deleteOwn(service: String) -> OSStatus {
+        if let old = oldName(service) { quietDelete(service: old) }
+        return delete(service: service)
+    }
+
+    /// Deletes an item with every prompt turned off. If macOS wants to ask, it just stays.
+    private static func quietDelete(service: String) {
+        let q: [String: Any] = [kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: service,
+                                kSecUseAuthenticationUI as String: kSecUseAuthenticationUIFail]
+        uiLock.lock(); defer { uiLock.unlock() }
+        var was: DarwinBoolean = true
+        SecKeychainGetUserInteractionAllowed(&was)
+        SecKeychainSetUserInteractionAllowed(false)
+        defer { SecKeychainSetUserInteractionAllowed(was.boolValue) }
+        let status = SecItemDelete(q as CFDictionary)
+        if status != errSecSuccess && status != errSecItemNotFound { Diagnostics.log("keychain: old item stays (\(status))") }
     }
 
     static func isPermissionProblem(_ s: OSStatus) -> Bool {
@@ -179,15 +228,15 @@ enum Keychain {
 
 /// Reads one value from an app's SQLite database without locking or changing it.
 /// Apps like Cursor keep their newest data in a "-wal" side file until it is merged, so
-/// reading the main file alone can return an old, already-replaced sign-in. TUM copies the
+/// reading the main file alone can return an old, already-replaced sign-in. TAB copies the
 /// database with its side files into a private temporary folder, reads the copy (which
 /// includes the newest data), and deletes the copy right away.
 enum SQLiteRead {
-    private static let folderPrefix = "tum-db-"
+    private static let folderPrefix = "tab-db-"
     private static let maxBytes = 64 * 1024 * 1024
 
     /// Deletes copies a crash may have left behind (they hold a copy of another app's database).
-    /// Only TUM's own "tum-db-" folders, nothing else in the temporary folder.
+    /// Only TAB's own "tab-db-" folders, nothing else in the temporary folder.
     static func sweepLeftovers() {
         let fm = FileManager.default
         guard let items = try? fm.contentsOfDirectory(at: fm.temporaryDirectory, includingPropertiesForKeys: nil) else { return }
@@ -255,15 +304,15 @@ struct ClaudeProvider: UsageProvider {
             } catch { lastError = error; Diagnostics.log("claude desktop: \(Diagnostics.describe(error))") }
         }
 
-        // 2. Claude Code's sign-in, read only. TUM never renews another app's sign-in: renewing
+        // 2. Claude Code's sign-in, read only. TAB never renews another app's sign-in: renewing
         // spends its refresh token and can sign the person out of Claude Code (security review M1).
-        // When it has expired, opening Claude Code renews it and TUM picks up the fresh one.
+        // When it has expired, opening Claude Code renews it and TAB picks up the fresh one.
         do {
             let cred = try loadCode(interactive: interactive)
-            if cred.expired { throw ProviderError.expired("Open Claude Code or the Claude app once, then TUM can check it again.") }
+            if cred.expired { throw ProviderError.expired("Open Claude Code or the Claude app once, then TAB can check it again.") }
             do { return try await Self.usage(token: cred.accessToken) }
             catch ProviderError.http(401) {
-                throw ProviderError.expired("Open Claude Code or the Claude app once, then TUM can check it again.")
+                throw ProviderError.expired("Open Claude Code or the Claude app once, then TAB can check it again.")
             }
         } catch ProviderError.needsApproval {
             throw ProviderError.needsApproval
@@ -290,7 +339,7 @@ struct ClaudeProvider: UsageProvider {
             doc = (try? JSONSerialization.jsonObject(with: d)) as? [String: Any]
             fromKeychain = doc != nil
         } else if Keychain.isPermissionProblem(r.status), !FileManager.default.fileExists(atPath: codeFile.path) {
-            throw interactive ? ProviderError.denied("macOS didn't let TUM check this app. Try again and choose Always Allow.") : ProviderError.needsApproval
+            throw interactive ? ProviderError.denied("macOS didn't let TAB check this app. Try again and choose Always Allow.") : ProviderError.needsApproval
         }
         if doc == nil { doc = readJSONFile(codeFile) as? [String: Any] }
         guard let d = doc, let o = d["claudeAiOauth"] as? [String: Any],
@@ -329,7 +378,7 @@ struct ClaudeProvider: UsageProvider {
 
 /// The Claude desktop app's saved session. It is encrypted with a key the app keeps in the
 /// Keychain ("Claude Safe Storage"), the standard way Electron apps protect saved data.
-/// TUM only borrows a still-valid token and never changes anything the app stores.
+/// TAB only borrows a still-valid token and never changes anything the app stores.
 enum ClaudeDesktop {
     private static var dir: URL { homeURL("Library/Application Support/Claude") }
     private static let keyService = "Claude Safe Storage"
@@ -338,7 +387,7 @@ enum ClaudeDesktop {
     private static var cachedKey: Data?
     private static let lock = NSLock()
 
-    /// Forgets the cached key, when Claude is removed in TUM.
+    /// Forgets the cached key, when Claude is removed in TAB.
     static func forget() { lock.lock(); cachedKey = nil; lock.unlock() }
 
     private static func config() -> [String: Any]? {
@@ -384,7 +433,7 @@ enum ClaudeDesktop {
             }
             if best != nil { break }
         }
-        guard let t = best?.token else { throw ProviderError.expired("Open the Claude app once, then TUM can check it again.") }
+        guard let t = best?.token else { throw ProviderError.expired("Open the Claude app once, then TAB can check it again.") }
         return t
     }
 
@@ -393,7 +442,7 @@ enum ClaudeDesktop {
         if let k = cached { return k }
         let r = Keychain.read(service: keyService, account: keyAccount, interactive: interactive)
         if Keychain.isPermissionProblem(r.status) {
-            throw interactive ? ProviderError.denied("macOS didn't let TUM check this app. Try again and choose Always Allow.") : ProviderError.needsApproval
+            throw interactive ? ProviderError.denied("macOS didn't let TAB check this app. Try again and choose Always Allow.") : ProviderError.needsApproval
         }
         guard r.status == errSecSuccess, let d = r.data, let password = String(data: d, encoding: .utf8), !password.isEmpty else {
             throw ProviderError.notSignedIn("Open the Claude app and sign in, then try again.")
@@ -491,12 +540,12 @@ struct CodexProvider: UsageProvider {
         guard let tokens = doc["tokens"] as? [String: Any], let access = tokens["access_token"] as? String, !access.isEmpty else {
             throw ProviderError.notSignedIn("Open Codex and sign in, then try again.")
         }
-        // Read only: TUM never renews Codex's sign-in, which could sign the person out of Codex
+        // Read only: TAB never renews Codex's sign-in, which could sign the person out of Codex
         // (security review M1). Codex renews it itself; its local session files cover the gap.
         do {
             return try await usage(access: access, account: headerSafe(tokens["account_id"] as? String, max: 128))
         } catch ProviderError.http(401) {
-            throw ProviderError.expired("Open Codex once, then TUM can check it again.")
+            throw ProviderError.expired("Open Codex once, then TAB can check it again.")
         }
     }
 
@@ -504,7 +553,7 @@ struct CodexProvider: UsageProvider {
         if let d = readJSONFile(file) as? [String: Any] { return (d, false) }
         let r = Keychain.read(service: Self.keychainService, account: keychainAccount, interactive: interactive)
         if r.status == errSecSuccess, let data = r.data, let d = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] { return (d, true) }
-        if Keychain.isPermissionProblem(r.status) { throw interactive ? ProviderError.denied("macOS didn't let TUM check this app. Try again and choose Always Allow.") : ProviderError.needsApproval }
+        if Keychain.isPermissionProblem(r.status) { throw interactive ? ProviderError.denied("macOS didn't let TAB check this app. Try again and choose Always Allow.") : ProviderError.needsApproval }
         throw ProviderError.notSignedIn("Open Codex and sign in, then try again.")
     }
 
@@ -553,17 +602,17 @@ struct CodexProvider: UsageProvider {
 // MARK: Cursor (Cursor app sign-in) and Grok Bot (Cursor's agent app, same sign-in)
 
 /// The sign-in the Cursor app (and Grok Bot) keep on this Mac. Newer Cursor versions keep the
-/// live sign-in in the Keychain and can leave an old one in their database, so TUM tries every
+/// live sign-in in the Keychain and can leave an old one in their database, so TAB tries every
 /// place in turn and keeps whichever works. A renewed token stays in memory only.
-/// TUM's own Cursor sign-in, used by Cursor and Grok Bot.
-/// Current Cursor versions keep a sign-in on disk that other apps can't use, so TUM signs in
+/// TAB's own Cursor sign-in, used by Cursor and Grok Bot.
+/// Current Cursor versions keep a sign-in on disk that other apps can't use, so TAB signs in
 /// the way Cursor's own command-line tool does: it opens cursor.com in the browser, the person
-/// approves once, and TUM picks up the result (PKCE, so nothing usable travels in the link).
-/// The token lives only in TUM's own Keychain item, is renewed before it ends (60 days), and is
-/// deleted when the person removes both Cursor and Grok Bot. TUM never reads Cursor's files.
+/// approves once, and TAB picks up the result (PKCE, so nothing usable travels in the link).
+/// The token lives only in TAB's own Keychain item, is renewed before it ends (60 days), and is
+/// deleted when the person removes both Cursor and Grok Bot. TAB never reads Cursor's files.
 enum CursorAuth {
     static let clientID = "KbZUR41cY7W6zRSdpSUJ7I7mLYBKOCmB"
-    static let service = "TUM Cursor sign-in"
+    static let service = "TAB Cursor sign-in"
     private static let account = "cursor"
     private static let server = URL(string: "https://api2.cursor.sh")!
     private static var working: String?
@@ -586,7 +635,7 @@ enum CursorAuth {
     // MARK: Sign-in
 
     /// Opens Cursor's sign-in page in the browser and waits (up to 5 minutes) for the person
-    /// to approve. Saves the result in TUM's Keychain item. Cancelling the task stops waiting.
+    /// to approve. Saves the result in TAB's Keychain item. Cancelling the task stops waiting.
     static func signIn(open: (URL) -> Void = { NSWorkspace.shared.open($0) }) async throws {
         var bytes = [UInt8](repeating: 0, count: 32)
         guard SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes) == errSecSuccess else { throw ProviderError.http(0) }
@@ -611,7 +660,7 @@ enum CursorAuth {
                 if let a = headerSafe(J.find(r, keys: ["accessToken"]) as? String) {
                     let rt = headerSafe(J.find(r, keys: ["refreshToken"]) as? String) ?? a
                     guard save(Tokens(access: a, refresh: rt), interactive: true) else {
-                        throw ProviderError.denied("TUM couldn't finish signing in. Try again.")
+                        throw ProviderError.denied("TAB couldn't finish signing in. Try again.")
                     }
                     Diagnostics.log("cursor sign-in: done, token \(describe(a))")
                     setWorking(a, ifGeneration: gen)
@@ -628,12 +677,12 @@ enum CursorAuth {
         throw ProviderError.notSignedIn("That took too long. Click Try again to sign in.")
     }
 
-    /// Whether TUM has its own Cursor sign-in. Never reads the secret and never prompts.
-    static var signedIn: Bool { Keychain.exists(service: service) }
+    /// Whether TAB has its own Cursor sign-in. Never reads the secret and never prompts.
+    static var signedIn: Bool { Keychain.ownExists(service: service) }
 
-    /// Deletes TUM's Cursor sign-in (when both Cursor and Grok Bot are removed).
+    /// Deletes TAB's Cursor sign-in (when both Cursor and Grok Bot are removed).
     static func signOut() {
-        let status = Keychain.delete(service: service)
+        let status = Keychain.deleteOwn(service: service)
         lock.lock(); working = nil; generation += 1; lock.unlock()
         Diagnostics.log(status == errSecSuccess || status == errSecItemNotFound
                         ? "cursor sign-in: removed" : "cursor sign-in: remove failed (\(status))")
@@ -645,9 +694,9 @@ enum CursorAuth {
     // MARK: Keychain
 
     private static func load(interactive: Bool) throws -> Tokens {
-        let r = Keychain.read(service: service, account: account, interactive: interactive)
+        let r = Keychain.readOwn(service: service, account: account, interactive: interactive)
         if Keychain.isPermissionProblem(r.status) {
-            throw interactive ? ProviderError.denied("macOS didn't let TUM check this app. Try again and choose Always Allow.") : ProviderError.needsApproval
+            throw interactive ? ProviderError.denied("macOS didn't let TAB check this app. Try again and choose Always Allow.") : ProviderError.needsApproval
         }
         guard r.status == errSecSuccess, let d = r.data else {
             throw ProviderError.notSignedIn("Click Connect to sign in to Cursor.")
@@ -679,7 +728,7 @@ enum CursorAuth {
 
     // MARK: Requests
 
-    /// Calls one of Cursor's dashboard services with TUM's sign-in, renewing it when needed.
+    /// Calls one of Cursor's dashboard services with TAB's sign-in, renewing it when needed.
     static func dashboard(_ method: String, interactive: Bool = false) async throws -> Any {
         let gen = currentGeneration()
         if let w = currentWorking(), !JWT.expiresSoon(w, margin: 7 * 86_400) {
@@ -724,7 +773,7 @@ enum CursorAuth {
             // Cursor ended this sign-in. Drop it, so Connect opens the browser again instead of
             // trying the dead token forever (security review).
             signOut()
-            throw ProviderError.notSignedIn("Cursor signed TUM out. Click Connect to sign in again.")
+            throw ProviderError.notSignedIn("Cursor signed TAB out. Click Connect to sign in again.")
         }
         let fresh = Tokens(access: access, refresh: headerSafe(J.find(r, keys: ["refresh_token", "refreshToken"]) as? String) ?? access)
         // Removed while this ran: the result is thrown away, never saved.
@@ -850,11 +899,11 @@ struct GrokProvider: UsageProvider {
               let token = entry["key"] as? String else {
             throw ProviderError.notSignedIn("Sign in to Grok first, then try again.")
         }
-        // Read only: TUM never renews Grok's sign-in, which could sign the person out of Grok
+        // Read only: TAB never renews Grok's sign-in, which could sign the person out of Grok
         // (security review M1). Opening Grok renews it.
-        if JWT.expiresSoon(token, margin: 0) { throw ProviderError.expired("Open Grok once, then TUM can check it again.") }
+        if JWT.expiresSoon(token, margin: 0) { throw ProviderError.expired("Open Grok once, then TAB can check it again.") }
         do { return try await usage(token) }
-        catch ProviderError.http(401) { throw ProviderError.expired("Open Grok once, then TUM can check it again.") }
+        catch ProviderError.http(401) { throw ProviderError.expired("Open Grok once, then TAB can check it again.") }
     }
 
     private func usage(_ token: String) async throws -> [UsageLimit] {
@@ -882,19 +931,19 @@ struct GrokProvider: UsageProvider {
 
 /// Uses the GitHub sign-in that Copilot's editor plugins or the GitHub CLI already keep.
 /// Only github.com tokens are used, and only sent to api.github.com.
-/// TUM's own GitHub sign-in for Copilot, using GitHub's device flow (the one-time code that the
-/// GitHub CLI and VS Code use): TUM shows a short code and opens github.com, the person approves,
-/// and TUM keeps the token only in its own Keychain item. Removing Copilot deletes it.
+/// TAB's own GitHub sign-in for Copilot, using GitHub's device flow (the one-time code that the
+/// GitHub CLI and VS Code use): TAB shows a short code and opens github.com, the person approves,
+/// and TAB keeps the token only in its own Keychain item. Removing Copilot deletes it.
 /// Only used when no Copilot sign-in already exists on this Mac (VS Code or GitHub CLI).
 enum GitHubAuth {
     /// GitHub Copilot's public app id, the one Copilot's own sign-ins use.
     static let clientID = "Iv1.b507a08c87ecfe98"
-    static let service = "TUM GitHub sign-in"
+    static let service = "TAB GitHub sign-in"
     private static let account = "github"
 
     struct DeviceCode: Equatable { let code: String; let url: URL }
 
-    static var signedIn: Bool { Keychain.exists(service: service) }
+    static var signedIn: Bool { Keychain.ownExists(service: service) }
 
     /// Starts the sign-in, hands the code to show, opens github.com, and waits until approved.
     static func signIn(show: @MainActor @escaping (DeviceCode) -> Void,
@@ -928,7 +977,7 @@ enum GitHubAuth {
                                       ("grant_type", "urn:ietf:params:oauth:grant-type:device_code")])
             guard let o = try? await HTTP.json(poll, provider: "github-signin") else { continue }
             if let token = headerSafe(J.dig(o, "access_token") as? String) {
-                guard save(token) else { throw ProviderError.denied("TUM couldn't finish signing in. Try again.") }
+                guard save(token) else { throw ProviderError.denied("TAB couldn't finish signing in. Try again.") }
                 Diagnostics.log("github sign-in: done")
                 return
             }
@@ -945,15 +994,15 @@ enum GitHubAuth {
 
     static func token(interactive: Bool) throws -> String? {
         guard signedIn else { return nil }
-        let r = Keychain.read(service: service, account: account, interactive: interactive)
+        let r = Keychain.readOwn(service: service, account: account, interactive: interactive)
         if Keychain.isPermissionProblem(r.status) {
-            throw interactive ? ProviderError.denied("macOS didn't let TUM check this app. Try again and choose Always Allow.") : ProviderError.needsApproval
+            throw interactive ? ProviderError.denied("macOS didn't let TAB check this app. Try again and choose Always Allow.") : ProviderError.needsApproval
         }
         return r.data.flatMap { String(data: $0, encoding: .utf8) }
     }
 
     static func signOut() {
-        let status = Keychain.delete(service: service)
+        let status = Keychain.deleteOwn(service: service)
         Diagnostics.log(status == errSecSuccess || status == errSecItemNotFound
                         ? "github sign-in: removed" : "github sign-in: remove failed (\(status))")
     }
@@ -974,7 +1023,7 @@ struct CopilotProvider: UsageProvider {
     private var editorFiles: [URL] { [homeURL(".config/github-copilot/apps.json"), homeURL(".config/github-copilot/hosts.json")] }
     private var ghHosts: URL { homeURL(".config/gh/hosts.yml") }
 
-    /// Copilot can always be connected: TUM signs in with GitHub when nothing is set up yet.
+    /// Copilot can always be connected: TAB signs in with GitHub when nothing is set up yet.
     func credentialAvailable() -> Bool { true }
 
     /// A real github.com sign-in from VS Code or the GitHub CLI is on this Mac. A file alone is not
@@ -997,7 +1046,7 @@ struct CopilotProvider: UsageProvider {
     }
 
     private func token(interactive: Bool) throws -> String {
-        // TUM's own GitHub sign-in first, then the ones VS Code or the GitHub CLI keep.
+        // TAB's own GitHub sign-in first, then the ones VS Code or the GitHub CLI keep.
         if let own = headerSafe(try GitHubAuth.token(interactive: interactive)) { return own }
         if let t = editorToken() { return t }
         if let text = readSmallText(ghHosts), let t = headerSafe(Self.ghToken(fromHostsYAML: text)) { return t }
@@ -1009,7 +1058,7 @@ struct CopilotProvider: UsageProvider {
             if let safe = headerSafe(t.trimmingCharacters(in: .whitespacesAndNewlines)) { return safe }
         }
         if Keychain.isPermissionProblem(r.status) {
-            throw interactive ? ProviderError.denied("macOS didn't let TUM check this app. Try again and choose Always Allow.") : ProviderError.needsApproval
+            throw interactive ? ProviderError.denied("macOS didn't let TAB check this app. Try again and choose Always Allow.") : ProviderError.needsApproval
         }
         throw ProviderError.notSignedIn("Click Connect to sign in with GitHub.")
     }
@@ -1062,22 +1111,22 @@ struct CopilotProvider: UsageProvider {
 
 // MARK: Gemini (the Gemini app's 5-hour and weekly limits, or the Gemini CLI's daily quota)
 
-/// Gemini app users (most people) connect with TUM's own Google sign-in (`GeminiAuth`), which
+/// Gemini app users (most people) connect with TAB's own Google sign-in (`GeminiAuth`), which
 /// reads the limits gemini.google.com/usage shows. Workspace and Code Assist accounts that still
-/// use the Gemini CLI sign-in keep working through it, read only, without TUM signing in.
+/// use the Gemini CLI sign-in keep working through it, read only, without TAB signing in.
 struct GeminiProvider: UsageProvider {
     let id = "gemini"
     private var file: URL { homeURL(".gemini/oauth_creds.json") }
     let base = "https://cloudcode-pa.googleapis.com/v1internal"
 
-    /// Gemini can always be connected: TUM signs in with Google when nothing works yet.
+    /// Gemini can always be connected: TAB signs in with Google when nothing works yet.
     func credentialAvailable() -> Bool { true }
     /// A Gemini CLI sign-in file is on this Mac.
     var hasCLISignIn: Bool { FileManager.default.fileExists(atPath: file.path) }
 
     func fetch(interactive: Bool) async throws -> [UsageLimit] {
         if GeminiAuth.signedIn { return try await GeminiAuth.fetch(interactive: interactive) }
-        guard hasCLISignIn else { throw ProviderError.notSignedIn("Sign in to Google in TUM to see Gemini's limits.") }
+        guard hasCLISignIn else { throw ProviderError.notSignedIn("Sign in to Google in TAB to see Gemini's limits.") }
         return try await fetchCLI()
     }
 
@@ -1098,7 +1147,7 @@ struct GeminiProvider: UsageProvider {
         }
         let tok = fileToken
         if let exp = J.date(J.dig(o, "expiry_date")), exp < Date().addingTimeInterval(60) {
-            throw ProviderError.expired("Open the Gemini CLI once, then TUM can check it again.")
+            throw ProviderError.expired("Open the Gemini CLI once, then TAB can check it again.")
         }
         let meta: [String: Any] = ["metadata": ["ideType": "IDE_UNSPECIFIED", "platform": "PLATFORM_UNSPECIFIED", "pluginType": "GEMINI"]]
         let load = try await post("loadCodeAssist", meta, token: tok)
@@ -1110,7 +1159,7 @@ struct GeminiProvider: UsageProvider {
         do { q = try await post("retrieveUserQuota", body, token: tok) }
         catch ProviderError.http(let code) where code == 400 {
             // Google ended the Gemini CLI sign-in for personal, AI Pro and Ultra accounts (2026-06-18).
-            throw ProviderError.notSignedIn("Sign in to Google in TUM to see Gemini's limits.")
+            throw ProviderError.notSignedIn("Sign in to Google in TAB to see Gemini's limits.")
         }
         guard let out = Self.parse(q) else { throw ProviderError.format("Gemini") }
         return out
@@ -1128,7 +1177,7 @@ struct GeminiProvider: UsageProvider {
 // MARK: Zed (the editor's own sign-in: monthly edit predictions)
 
 /// Zed keeps its sign-in in the Keychain after you sign in inside the editor: an internet password
-/// for https://zed.dev whose account is your Zed user id. TUM only reads it (never changes or
+/// for https://zed.dev whose account is your Zed user id. TAB only reads it (never changes or
 /// renews it) and sends it only to Zed's own cloud, the same call the editor makes.
 /// Path from CodexBar's Zed provider (docs/SYNC-PLAN.md).
 struct ZedProvider: UsageProvider {
@@ -1141,7 +1190,7 @@ struct ZedProvider: UsageProvider {
     private func authorization(interactive: Bool) throws -> String {
         let r = Keychain.readInternet(server: Self.server, interactive: interactive)
         if Keychain.isPermissionProblem(r.status) {
-            throw interactive ? ProviderError.denied("macOS didn't let TUM check Zed. Try again and choose Always Allow.") : ProviderError.needsApproval
+            throw interactive ? ProviderError.denied("macOS didn't let TAB check Zed. Try again and choose Always Allow.") : ProviderError.needsApproval
         }
         guard r.status == errSecSuccess, let d = r.data,
               let header = Self.header(user: r.account, token: String(data: d, encoding: .utf8)) else {
@@ -1164,7 +1213,7 @@ struct ZedProvider: UsageProvider {
         req.setValue(try authorization(interactive: interactive), forHTTPHeaderField: "Authorization")
         let r: Any
         do { r = try await HTTP.json(req, provider: id) }
-        catch ProviderError.expired { throw ProviderError.expired("Sign in to Zed again, then TUM can check it.") }
+        catch ProviderError.expired { throw ProviderError.expired("Sign in to Zed again, then TAB can check it.") }
         guard let out = Self.parse(r) else { throw ProviderError.format("Zed") }
         return out
     }

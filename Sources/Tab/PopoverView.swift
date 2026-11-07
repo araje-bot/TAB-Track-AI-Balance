@@ -26,7 +26,7 @@ struct PopoverView: View {
     }
 
     /// Opening an app pushes its detail in from the right and Back slides it out again, the
-    /// standard macOS navigation motion, on the same quick smooth curve as the rest of TUM (AK).
+    /// standard macOS navigation motion, on the same quick smooth curve as the rest of TAB (AK).
     /// The popover resizes on that curve too.
     private func open(_ id: String?) {
         withAnimation(Motion.morph) { detailID = id }
@@ -70,7 +70,7 @@ struct PopoverView: View {
     private var main: some View {
         VStack(spacing: 12) {
             HStack {
-                Text("Token Utilization Monitor").font(.title3.weight(.semibold))
+                Text("Track AI Balance").font(.title3.weight(.semibold))
                 Spacer()
                 Button("Settings", systemImage: "gearshape", action: openSettings)
                     .iconButton()
@@ -136,7 +136,7 @@ struct PopoverView: View {
                     .secondaryButton()
             }
 
-            // Feedback goes to TUM's GitHub Issues (AK).
+            // Feedback goes to TAB's GitHub Issues (AK).
             FeedbackLink { withAnimation(Motion.morph) { feedback = true } }
         }
         .padding(16)
@@ -181,7 +181,7 @@ struct TileCell: View {
             Text(store.name(id)).font(.callout.weight(.medium)).foregroundStyle(.secondary).lineLimit(1)
             if !store.readsUsage(id) {
                 Text("No data yet").font(.callout).foregroundStyle(.secondary)
-                    .help("TUM can't read \(store.name(id))'s usage yet")
+                    .help("TAB can't read \(store.name(id))'s usage yet")
             } else if store.needsApproval.contains(id) {
                 Text("Connect").font(.callout.weight(.semibold)).foregroundStyle(.tint)
                     .help("One more click to finish connecting")
@@ -221,7 +221,7 @@ struct DetailView: View {
 
     /// One app, in a simple fixed order (AK): header, the app's circle and the tabs, then one card
     /// (finish connecting, or the limits), then Refresh and Remove. It sizes to its content, so
-    /// nothing is ever squeezed. TUM never offers to open the app itself.
+    /// nothing is ever squeezed. TAB never offers to open the app itself.
     var body: some View {
         let pct = store.percent(id)
         let stale = store.isStale(id)
@@ -241,11 +241,11 @@ struct DetailView: View {
                        size: 88, stale: stale && store.snapshots[id] != nil)
 
             if !reads {
-                // Connected by choice, with nothing TUM can read yet (AK).
+                // Connected by choice, with nothing TAB can read yet (AK).
                 Card {
                     VStack(alignment: .leading, spacing: 6) {
                         Text("No usage data yet").font(.headline)
-                        Text("TUM can't read \(store.name(id))'s usage yet. Its numbers show here once it does.")
+                        Text("TAB can't read \(store.name(id))'s usage yet. Its numbers show here once it does.")
                             .font(.callout).foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
                     }
@@ -287,7 +287,7 @@ struct DetailView: View {
                             }
                         }
                         // The sync line sits apart from the numbers, below a divider (AK), and only
-                        // shows when the numbers are old or a check failed. TUM syncs by itself.
+                        // shows when the numbers are old or a check failed. TAB syncs by itself.
                         if store.showsSyncLine(id) {
                         Divider()
                         HStack(alignment: .firstTextBaseline, spacing: 10) {

@@ -58,7 +58,7 @@ enum WatchMode: String, CaseIterable, Identifiable, Codable {
 }
 
 enum Level {
-    /// `use`: plenty left and the limit resets soon, so TUM suggests using it (the green pill).
+    /// `use`: plenty left and the limit resets soon, so TAB suggests using it (the green pill).
     case ok, low, out, use
 }
 
@@ -73,17 +73,17 @@ struct AIApp: Identifiable, Hashable {
     let name: String
     let category: String
     var appURL: URL?
-    var supported: Bool          // TUM knows how to read its usage
+    var supported: Bool          // TAB knows how to read its usage
     var credentialFound: Bool    // a sign-in exists on this Mac
     var hint: String             // what to do when it can't connect yet
     var source: String           // where the numbers come from
-    /// Only apps TUM can read are connected (AK: no data, no point). Apps it can't read yet
+    /// Only apps TAB can read are connected (AK: no data, no point). Apps it can't read yet
     /// wait in Coming soon. Supported apps also need their sign-in on this Mac.
     var canConnect: Bool { supported && credentialFound }
-    /// Cursor and Grok Bot connect through TUM's own Cursor sign-in, in the browser.
+    /// Cursor and Grok Bot connect through TAB's own Cursor sign-in, in the browser.
     var usesCursorSignIn: Bool { id == "cursor" || id == "grokbot" }
     /// Copilot signs in with GitHub (a one-time code) when nothing is set up on this Mac yet.
     var usesGitHubSignIn: Bool { id == "copilot" }
-    /// Gemini signs in with Google in a TUM window (the Gemini app's limits).
+    /// Gemini signs in with Google in a TAB window (the Gemini app's limits).
     var usesGoogleSignIn: Bool { id == "gemini" }
 }

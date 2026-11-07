@@ -21,7 +21,7 @@ struct MenuBarLabel: View {
                   glyph: u.flatMap { store.glyph($0.id) }, symbol: u.map { store.symbol($0.id) } ?? "sparkle")
             .fixedSize()
             #if DEBUG
-            // TUM Dev wears a small orange dot, so it can't be mistaken for the real TUM (AK).
+            // TAB Dev wears a small orange dot, so it can't be mistaken for the real TAB (AK).
             .overlay(alignment: .topTrailing) {
                 Circle().fill(Color.orange).frame(width: 5, height: 5).offset(x: 2, y: -1)
             }
@@ -37,8 +37,8 @@ final class StatusItemController: NSObject {
 
     /// macOS remembers each menu bar item's spot under this name. Position 0 is the
     /// far right, next to Control Center, where a full menu bar can't hide it.
-    private static let autosaveName = "TUM"
-    private static let positionKey = "NSStatusItem Preferred Position TUM"
+    private static let autosaveName = "TAB"
+    private static let positionKey = "NSStatusItem Preferred Position TAB"
 
     private static func makeItem() -> NSStatusItem {
         let d = UserDefaults.standard
@@ -110,7 +110,7 @@ final class StatusItemController: NSObject {
         b.target = self
         b.action = #selector(toggle(_:))
         b.sendAction(on: [.leftMouseUp, .rightMouseUp])
-        b.setAccessibilityLabel("Token Utilization Monitor")
+        b.setAccessibilityLabel("Track AI Balance")
         // Quick look on hover, in a glass tip (the system tooltip is slow and not Liquid Glass).
         b.toolTip = nil
         hover.onEnter = { [weak self] in self?.hoverEntered() }
@@ -156,7 +156,7 @@ final class StatusItemController: NSObject {
     #endif
 
     /// Resizes the menu bar slot when the icon turns into a pill or back. The width glides on the
-    /// same quick 0.35s curve as the icon's morph, so the menu bar icons next to TUM slide smoothly
+    /// same quick 0.35s curve as the icon's morph, so the menu bar icons next to TAB slide smoothly
     /// instead of jumping (AK). Reduce Motion changes it in one step.
     func layout() {
         guard item.button != nil else { return }
@@ -181,7 +181,7 @@ final class StatusItemController: NSObject {
                 guard let self = self else { t.invalidate(); return }
                 let p = min(1, (CACurrentMediaTime() - began) / duration)
                 // Ease in and out: starts gently, moves quickly, settles gently, so the icons
-                // next to TUM glide instead of jumping either way.
+                // next to TAB glide instead of jumping either way.
                 let eased = p < 0.5 ? 4 * p * p * p : 1 - pow(-2 * p + 2, 3) / 2
                 self.item.length = (start + (target - start) * CGFloat(eased)).rounded()
                 self.placeHost()
@@ -201,7 +201,7 @@ final class StatusItemController: NSObject {
         return ceil(2 + 16 + 4 + w + 8) + 12
     }
 
-    /// Where the popover points: the icon's spot at the right end of the slot (AK). TUM sits at the
+    /// Where the popover points: the icon's spot at the right end of the slot (AK). TAB sits at the
     /// far right and the pill grows leftward, so this spot never moves on screen. The popover
     /// stays put when the icon turns into a pill or back, for example when switching tabs.
     func anchor(in b: NSView) -> NSRect {
@@ -260,7 +260,7 @@ final class StatusItemController: NSObject {
         return true
     }
 
-    /// Opens TUM. Anchored to the menu bar icon when it can be seen; otherwise a floating
+    /// Opens TAB. Anchored to the menu bar icon when it can be seen; otherwise a floating
     /// panel at the top right, so it never opens off screen.
     func open() {
         store.showTipTab()
@@ -308,7 +308,7 @@ final class StatusItemController: NSObject {
         addPillPreviews(to: m)
         m.addItem(.separator())
         #endif
-        m.addItem(menuItem("Open TUM", #selector(menuOpen)))
+        m.addItem(menuItem("Open TAB", #selector(menuOpen)))
         m.addItem(menuItem("Settings…", #selector(menuSettings), key: ","))
         m.addItem(menuItem("Show welcome screens", #selector(menuWelcome)))
         #if DEBUG
@@ -316,7 +316,7 @@ final class StatusItemController: NSObject {
         m.addItem(developerMenuItem())
         #endif
         m.addItem(.separator())
-        m.addItem(menuItem("Quit TUM", #selector(menuQuit), key: "q"))
+        m.addItem(menuItem("Quit TAB", #selector(menuQuit), key: "q"))
         m.autoenablesItems = false
         let y: CGFloat = b.isFlipped ? b.bounds.height + 5 : -5
         m.popUp(positioning: nil, at: NSPoint(x: 0, y: y), in: b)
@@ -365,7 +365,7 @@ struct QuickView: View {
     var body: some View {
         VStack(spacing: 12) {
             if store.connected.isEmpty {
-                Text("No apps connected in TUM yet").font(.headline).padding(20)
+                Text("No apps connected in TAB yet").font(.headline).padding(20)
             } else {
                 HStack(alignment: .top, spacing: 10) {
                     ForEach(store.displayOrder, id: \.self) { id in
@@ -415,7 +415,7 @@ final class QuickPanelController {
         panel.contentView = host
     }
 
-    /// Shows the panel in the middle of the screen you're on, both ways, like the ⌘Tab switcher (AK).
+    /// Shows the panel in the middle of the screen you're on, both ways, like the ⌘TAB switcher (AK).
     func show() {
         guard let screen = NSScreen.main else { return }
         let size = host.fittingSize
@@ -430,7 +430,7 @@ final class QuickPanelController {
 }
 
 /// The shortcut (⌘ T, ⌥ T or the person's own) shows the quick view from any app. It is a registered shortcut, so macOS
-/// asks for no permission and TUM never sees any other key you press.
+/// asks for no permission and TAB never sees any other key you press.
 final class GlanceShortcut {
     var onPress: () -> Void = {}
     var onRelease: () -> Void = {}
@@ -448,7 +448,7 @@ final class GlanceShortcut {
         let order = [preferred] + ShortcutChoice.fallbacks.filter { $0 != preferred }
         for c in order {
             let (code, mods) = (Int(c.keyCode), c.modifier.carbon)
-            let id = EventHotKeyID(signature: OSType(0x54554D31), id: 1)   // "TUM1"
+            let id = EventHotKeyID(signature: OSType(0x54414231), id: 1)   // "TAB1"
             let status = RegisterEventHotKey(UInt32(code), UInt32(mods), id, GetApplicationEventTarget(),
                                              OptionBits(kEventHotKeyExclusive), &hotKey)
             if status == noErr { return c }
@@ -530,7 +530,7 @@ final class FloatingPanel: NSObject, NSWindowDelegate {
     func windowDidResignKey(_ notification: Notification) { close() }
 }
 
-/// "TUM lives here": shown in a popover on the menu bar icon after onboarding.
+/// "TAB lives here": shown in a popover on the menu bar icon after onboarding.
 struct IntroCallout: View {
     let dismiss: () -> Void
 
@@ -538,7 +538,7 @@ struct IntroCallout: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 10) {
                 TankMark(size: 18, color: .primary)
-                Text("TUM lives here").font(.title3.weight(.semibold)).foregroundStyle(.primary)
+                Text("TAB lives here").font(.title3.weight(.semibold)).foregroundStyle(.primary)
             }
             Text("Click it to see your usage. It turns yellow or red when an app runs low.")
                 .font(TextStyle.caption).foregroundStyle(.secondary)
@@ -553,7 +553,7 @@ struct IntroCallout: View {
         .padding(16)
         .frame(width: 340)
         .accessibilityElement(children: .contain)
-        .accessibilityLabel("TUM lives in your menu bar")
+        .accessibilityLabel("TAB lives in your menu bar")
     }
 }
 

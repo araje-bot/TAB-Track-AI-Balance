@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// TUM's design layer, built on Apple's HIG for macOS 26.
+/// TAB's design layer, built on Apple's HIG for macOS 26.
 /// - Buttons are the SDK's standard bordered styles as one family, all at one size
 ///   (`ControlMetrics.size`): `.borderedProminent` capsule for the one main action, `.bordered`
 ///   capsule for the rest, circles for icon-only buttons. They sit in window content, forms,
@@ -8,12 +8,12 @@ import SwiftUI
 ///   floating layer, and glass on top of glass (the popover) is avoided (AK, 2026-11-06: the glass
 ///   buttons drew a lens shadow in Light Mode).
 /// - Content sits in native containers (`GroupBox`, grouped `Form`) on system colors.
-/// - `.glassEffect` is only used on TUM's own floating layers (quick view, hover tip, the
+/// - `.glassEffect` is only used on TAB's own floating layers (quick view, hover tip, the
 ///   fallback panel). Shapes inside panels are concentric.
 /// - Text uses the system text styles and label colors, and follows Light and Dark Mode.
 enum Radius {
     static let card: CGFloat = 18      // content cards: soft, continuous corners like macOS 26 containers
-    static let panel: CGFloat = 22     // TUM's own glass panels (quick view, fallback panel)
+    static let panel: CGFloat = 22     // TAB's own glass panels (quick view, fallback panel)
     static let tip: CGFloat = 16       // the hover tip, soft like the cards
     static let field: CGFloat = 10     // input boxes, like the shortcut field
     static let tile: CGFloat = 0.225   // usage tiles, the macOS app icon shape (share of size)
@@ -23,7 +23,7 @@ extension View {
 
     // MARK: Surfaces
 
-    /// Floating glass panel. Only for TUM's own floating layers.
+    /// Floating glass panel. Only for TAB's own floating layers.
     /// It also sets the container shape, so concentric shapes inside follow its corners.
     @ViewBuilder
     func glassPanel(cornerRadius: CGFloat = Radius.panel) -> some View {
@@ -35,12 +35,12 @@ extension View {
         }
     }
 
-    /// A content block in TUM's card (see `Card`).
+    /// A content block in TAB's card (see `Card`).
     func contentCard() -> some View {
         Card { self }
     }
 
-    /// A content block inside one of TUM's glass panels: the system fill in a shape that is
+    /// A content block inside one of TAB's glass panels: the system fill in a shape that is
     /// concentric with the panel's corners (macOS 26), as the HIG asks for nested shapes.
     @ViewBuilder
     func innerCard() -> some View {
@@ -98,7 +98,7 @@ extension View {
     }
 }
 
-/// One control size for every button and picker in TUM, so main, other and icon buttons match.
+/// One control size for every button and picker in TAB, so main, other and icon buttons match.
 enum ControlMetrics {
     static let size: ControlSize = .large
     /// The icon box inside icon-only buttons. With the system's padding, the circle comes out
@@ -245,11 +245,11 @@ struct ButtonText: View {
 /// Scan for more apps, the HIG way: a glass icon button with the standard Refresh symbol
 /// (`arrow.clockwise`), the same size as the other icon buttons. While it scans, the system
 /// spinner takes its place with no label ("avoid labeling a spinning progress indicator"), then
-/// the arrow returns. TUM also scans by itself whenever onboarding or Settings opens.
+/// the arrow returns. TAB also scans by itself whenever onboarding or Settings opens.
 struct FindAppsButton: View {
     @ObservedObject var store: Store
 
-    /// One glass button that never moves. While TUM scans, the arrow inside it is replaced by the
+    /// One glass button that never moves. While TAB scans, the arrow inside it is replaced by the
     /// system activity indicator (`ProgressView`, the HIG's spinner for a short task next to the
     /// control that started it, no label), and the button is dimmed so it can't be pressed twice.
     var body: some View {
@@ -274,7 +274,7 @@ struct FindAppsButton: View {
     }
 }
 
-/// Every tab control in TUM: a rounded track inside its section, with one selection pill that
+/// Every tab control in TAB: a rounded track inside its section, with one selection pill that
 /// slides smoothly to the chosen option (the matched-geometry pattern from Nil Coalescing's
 /// "custom segmented control", since SwiftUI can't restyle the system picker). The pill is a
 /// solid raised shape, not glass, so it stays crisp while it moves (AK).

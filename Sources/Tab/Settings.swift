@@ -35,7 +35,7 @@ struct SettingsView: View {
                         .font(.largeTitle).frame(width: 48)
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Your info stays secure").font(.headline)
-                        Text("TUM has no server. Each sign-in goes only to its own app to check usage. Your prompts and work are never saved or sent.")
+                        Text("TAB has no server. Each sign-in goes only to its own app to check usage. Your prompts and work are never saved or sent.")
                             .font(.subheadline).foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
                     }
@@ -48,7 +48,7 @@ struct SettingsView: View {
                 Section {
                     Label {
                         VStack(alignment: .leading, spacing: 2) {
-                            Text("TUM's menu bar icon is hidden").font(.headline)
+                            Text("TAB's menu bar icon is hidden").font(.headline)
                             Text("Hold ⌘ and drag it to the right end of the menu bar.")
                                 .font(.callout).foregroundStyle(.secondary)
                         }
@@ -59,10 +59,10 @@ struct SettingsView: View {
             }
 
             Section {
-                // Only apps TUM can read (AK). The others wait in Coming soon.
+                // Only apps TAB can read (AK). The others wait in Coming soon.
                 let ready = store.readyToConnect
                 if ready.isEmpty {
-                    Text("No AI apps found yet. Install one and TUM will find it.")
+                    Text("No AI apps found yet. Install one and TAB will find it.")
                         .foregroundStyle(.secondary)
                 }
                 ForEach(ready) { app in appRow(app) }
@@ -76,7 +76,7 @@ struct SettingsView: View {
 
             let later = store.comingSoon
             if !later.isEmpty {
-                // Apps TUM can't read yet, on this Mac or planned: nothing to click yet (AK).
+                // Apps TAB can't read yet, on this Mac or planned: nothing to click yet (AK).
                 Section("Coming soon") {
                     ForEach(later) { app in
                         HStack(spacing: 12) {
@@ -95,7 +95,7 @@ struct SettingsView: View {
             }
 
             Section("Nudges") {
-                SettingRow("Usage monitoring", subtitle: "Which limit TUM watches for you") {
+                SettingRow("Usage monitoring", subtitle: "Which limit TAB watches for you") {
                     SegmentedChoice(selection: $store.watch, options: WatchMode.segments, label: "Usage monitoring")
                 }
                 SettingRow("Turn yellow at", subtitle: "When the icon turns yellow") {
@@ -116,7 +116,7 @@ struct SettingsView: View {
 
             Section("General") {
                 SettingRow("Welcome screens", subtitle: "See the welcome tour again") {
-                    // An icon button like the others in TUM, with a filled play symbol: "play the tour
+                    // An icon button like the others in TAB, with a filled play symbol: "play the tour
                     // again" (AK). SF Symbols already centers the triangle optically; the extra 1pt
                     // nudge right looked off (AK), so it sits slightly left of that.
                     Button(action: showWelcome) {
@@ -129,12 +129,12 @@ struct SettingsView: View {
                         .iconButton()
                         .help("Show welcome screens again")
                 }
-                SettingRow("Always show in Dock", subtitle: "Keep TUM in the Dock, even with no window open") {
+                SettingRow("Always show in Dock", subtitle: "Keep TAB in the Dock, even with no window open") {
                     Toggle("Always show in Dock", isOn: $store.alwaysInDock).labelsHidden().toggleStyle(.switch).controlSize(.regular)
                 }
-                // Only an installed TUM can start at login. A copy on the disk image or in a temporary
+                // Only an installed TAB can start at login. A copy on the disk image or in a temporary
                 // folder would leave a broken login item behind (security review L14).
-                SettingRow("Open at login", subtitle: Self.installedInApplications ? "Start TUM when you turn on your Mac" : "Move TUM to Applications first") {
+                SettingRow("Open at login", subtitle: Self.installedInApplications ? "Start TAB when you turn on your Mac" : "Move TAB to Applications first") {
                     Toggle("Open at login", isOn: $openAtLogin).labelsHidden().toggleStyle(.switch).controlSize(.regular)
                         .disabled(!Self.installedInApplications)
                         .onChange(of: openAtLogin) { on in
@@ -157,7 +157,7 @@ struct SettingsView: View {
                     .secondaryButton()
                     .help("For support. It holds no sign-ins, prompts or work.")
                     // Red text like Remove (AK): deeper in Light Mode, lighter in Dark Mode, both readable.
-                    Button { NSApp.terminate(nil) } label: { ButtonText("Quit TUM").foregroundStyle(Palette.redText) }.secondaryButton()
+                    Button { NSApp.terminate(nil) } label: { ButtonText("Quit TAB").foregroundStyle(Palette.redText) }.secondaryButton()
                 }
                 HStack {
                     Spacer()
@@ -197,7 +197,7 @@ struct SettingsView: View {
         }
     }
 
-    /// True when TUM runs from /Applications or ~/Applications, the only places a login item may point at.
+    /// True when TAB runs from /Applications or ~/Applications, the only places a login item may point at.
     static var installedInApplications: Bool {
         let path = Bundle.main.bundleURL.standardizedFileURL.resolvingSymlinksInPath().path
         let home = FileManager.default.homeDirectoryForCurrentUser.resolvingSymlinksInPath().path

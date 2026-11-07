@@ -94,7 +94,7 @@ extension StatusItemController {
         let m = NSMenu(title: "Developer")
 
         m.addItem(sectionTitle("Screens"))
-        let names = ["Welcome", "How TUM works", "Apps", "Nudges"]
+        let names = ["Welcome", "How TAB works", "Apps", "Nudges"]
         for (i, n) in names.enumerated() {
             let item = devItem("Onboarding \(i + 1): \(n)", #selector(devOnboarding(_:)))
             item.tag = i + 1
@@ -150,12 +150,12 @@ extension StatusItemController {
     @objc private func devGreen() { store.devFake(.useIt) }
     @objc private func devReal() { store.devUseRealData() }
 
-    /// Same as `killall TUM; defaults delete edu.umd.inst474.tum`, then opens TUM again.
+    /// Same as `killall TAB; defaults delete edu.umd.inst474.tab`, then opens TAB again.
     /// Sign-ins in other apps and the Keychain are not touched.
     @objc private func devStartFresh() {
         let a = NSAlert()
         a.messageText = "Start fresh?"
-        a.informativeText = "This clears all TUM settings and connected apps, then reopens TUM like a new install."
+        a.informativeText = "This clears all TAB settings and connected apps, then reopens TAB like a new install."
         a.addButton(withTitle: "Start fresh")
         a.addButton(withTitle: "Cancel")
         NSApp.activate(ignoringOtherApps: true)

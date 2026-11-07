@@ -4,7 +4,7 @@ import MachO
 import Carbon.HIToolbox
 import Security
 
-/// `TUM --self-test` checks the parts most likely to break, without the network
+/// `TAB --self-test` checks the parts most likely to break, without the network
 /// and without changing any saved settings. make_dmg.sh runs it on every build
 /// and stops if anything fails, so a broken app never reaches the DMG.
 @MainActor
@@ -18,7 +18,7 @@ enum SelfTest {
     }
 
     static func run() -> Bool {
-        print("TUM self-test")
+        print("TAB self-test")
         _ = NSApplication.shared
         NSApp.setActivationPolicy(.prohibited)
 
@@ -78,7 +78,7 @@ enum SelfTest {
               && ZedProvider.header(user: "me@x", token: "fake") == nil && ZedProvider.header(user: "1", token: "a b\nc") == nil)
         check("Zed reply without its usage is rejected", ZedProvider.parse(["plan": ["plan_v3": "zed_free"] as [String: Any]] as [String: Any]) == nil
               && ZedProvider.parse(["plan": ["usage": ["edit_predictions": ["used": 1, "limit": 0] as [String: Any]] as [String: Any]] as [String: Any]] as [String: Any]) == nil)
-        // Gemini app limits through TUM's own Google sign-in (AK, 2026-11-06).
+        // Gemini app limits through TAB's own Google sign-in (AK, 2026-11-06).
         let gemReply = #")]}' [{"data":{"viewer":{"rpcs":{"getUsageInfo":{"pools":[{"poolType":"GXU_FIVE_HOURLY","percentageUsed":0.25,"gxu":{"windowRefreshesAt":"2026-11-07T01:00:00Z"}},{"poolType":"GXU_WEEKLY","percentageUsed":0.6}]}}}}}]"#
         let gem = GeminiAuth.parse(gemReply)
         check("Gemini app shows 75% of its 5 hours and 40% of its week left",
@@ -102,7 +102,7 @@ enum SelfTest {
         check("Unknown reply is rejected, not shown as 0%", CursorProvider.parse(["something": 1] as [String: Any]) == nil && GrokProvider.parse([String: Any]()) == nil && GrokBotProvider.parse("x") == nil)
 
         // Codex's local session file.
-        let tmp = FileManager.default.temporaryDirectory.appendingPathComponent("tum-selftest-\(UUID().uuidString).jsonl")
+        let tmp = FileManager.default.temporaryDirectory.appendingPathComponent("tab-selftest-\(UUID().uuidString).jsonl")
         let line = #"{"timestamp":"2030-01-01T10:00:00Z","type":"event_msg","payload":{"type":"token_count","rate_limits":{"primary":{"used_percent":12.5,"window_minutes":300,"resets_in_seconds":60},"secondary":{"used_percent":40,"window_minutes":10080}}}}"#
         try? ("{\"type\":\"other\"}\n" + line + "\n").write(to: tmp, atomically: true, encoding: .utf8)
         let local = CodexLocal.read(tmp)
@@ -156,7 +156,7 @@ enum SelfTest {
         do {
             let was = Keychain.silentReadsAllowed
             Keychain.silentReadsAllowed = false
-            check("No Keychain reads before onboarding", Keychain.read(service: "tum-self-test", interactive: false).status == errSecInteractionNotAllowed)
+            check("No Keychain reads before onboarding", Keychain.read(service: "tab-self-test", interactive: false).status == errSecInteractionNotAllowed)
             Keychain.silentReadsAllowed = was
         }
         check("Cursor sign-in code is URL-safe", !CursorAuth.base64URL(Data([0xfb, 0xff, 0xfe, 0x01])).contains(where: { "+/=".contains($0) }))
@@ -223,7 +223,7 @@ enum SelfTest {
         flow.rotatePill(now: Date().addingTimeInterval(turn)); let third = flow.urgent?.id        // then Claude's turn
         flow.rotatePill(now: Date().addingTimeInterval(turn * 2)); let fourth = flow.urgent?.id   // and Codex again
         flow.holdPill = true
-        flow.rotatePill(now: Date().addingTimeInterval(turn * 3)); let held = flow.urgent?.id      // not while TUM is open
+        flow.rotatePill(now: Date().addingTimeInterval(turn * 3)); let held = flow.urgent?.id      // not while TAB is open
         flow.holdPill = false
         check("Several low apps take turns on the pill, news first",
               start && first == "claude" && second == "codex" && third == "claude" && fourth == "codex" && held == "codex")
@@ -247,7 +247,7 @@ enum SelfTest {
         let oldLow = Store.preview(apps: ["claude": 50])
         oldLow.snapshots["claude"] = ProviderSnapshot(limits: Store.sampleLimits("claude", pct: 20), fetchedAt: Date().addingTimeInterval(-30 * 60))
         check("A low reading keeps the pill when a refresh fails", oldLow.urgent?.id == "claude")
-        // Use it before it resets: green pill until TUM is opened, never over a warning.
+        // Use it before it resets: green pill until TAB is opened, never over a warning.
         let now = Date()
         let soonFull = UsageLimit(kind: .long, label: "Week", percentLeft: 85, resetsAt: now.addingTimeInterval(9 * 3600))
         let soonHalf = UsageLimit(kind: .long, label: "Week", percentLeft: 55, resetsAt: now.addingTimeInterval(20 * 3600))
@@ -295,7 +295,7 @@ enum SelfTest {
         // Card notes never wrap or cut off: 24 characters, 18 when the Connect button shares the row.
         check("App notes fit on one line", (Catalog.all + Catalog.planned).allSatisfy { $0.hint.count <= 24 }
               && Catalog.all.filter { $0.id == "cursor" || $0.id == "grokbot" }.allSatisfy { $0.hint.count <= 18 })
-        // Apps TUM can't read are never connected (AK: no data, no point). They wait in Coming soon,
+        // Apps TAB can't read are never connected (AK: no data, no point). They wait in Coming soon,
         // and ones connected by older versions are dropped on launch.
         let noReader = Store.preview(apps: [:])
         let perplexity = AIApp(id: "perplexity", name: "Perplexity", category: "Search", appURL: URL(fileURLWithPath: "/Applications/Perplexity.app"),
@@ -306,17 +306,39 @@ enum SelfTest {
         Task { @MainActor in refusal = .some(await noReader.connectAndCheck("perplexity")) }
         let refusalDeadline = Date().addingTimeInterval(2)
         while refusal == nil && Date() < refusalDeadline { RunLoop.main.run(until: Date().addingTimeInterval(0.01)) }
-        let oldSuite = "tum-selftest-noreader"
+        let oldSuite = "tab-selftest-noreader"
         let oldDefaults = UserDefaults(suiteName: oldSuite)!
         oldDefaults.removePersistentDomain(forName: oldSuite)
         oldDefaults.set(["claude", "perplexity", "lovable", "kiro"], forKey: "connected")
         let reloaded = Store(defaults: oldDefaults).connected
         oldDefaults.removePersistentDomain(forName: oldSuite)
-        check("Apps TUM can't read are never connected; they wait in Coming soon",
+        check("Apps TAB can't read are never connected; they wait in Coming soon",
               !perplexity.canConnect && !noReader.connected.contains("perplexity") && (refusal ?? nil) != nil
               && !noReader.readyToConnect.contains { $0.id == "perplexity" } && noReader.comingSoon.first?.id == "perplexity"
               && reloaded == ["claude"])
-        check("Only installed apps count for apps TUM can't read, never a leftover folder",
+        // The rename from TUM: settings come over once, sign-ins keep working under the new name.
+        let oldName = "tab-selftest-old", newName = "tab-selftest-new"
+        let oldPrefs = UserDefaults(suiteName: oldName)!, newPrefs = UserDefaults(suiteName: newName)!
+        oldPrefs.removePersistentDomain(forName: oldName); newPrefs.removePersistentDomain(forName: newName)
+        newPrefs.set(0, forKey: "launchInProgress")   // a stray key from a self-test run doesn't stop the move
+        oldPrefs.set(["claude", "codex"], forKey: "connected")
+        oldPrefs.set(-1, forKey: "NSStatusItem Preferred Position TUM")
+        Rename.moveSettings(from: oldName, into: newPrefs, id: newName)
+        let movedOnce = newPrefs.stringArray(forKey: "connected") == ["claude", "codex"]
+            && newPrefs.object(forKey: "NSStatusItem Preferred Position TAB") != nil
+        oldPrefs.set(["zed"], forKey: "connected")
+        Rename.moveSettings(from: oldName, into: newPrefs, id: newName)
+        let notAgain = newPrefs.stringArray(forKey: "connected") == ["claude", "codex"]
+        oldPrefs.removePersistentDomain(forName: oldName); newPrefs.removePersistentDomain(forName: newName)
+        check("TAB brings TUM's settings over once, and its own sign-ins keep their old names as a fallback",
+              movedOnce && notAgain
+              && Rename.oldID(for: "edu.umd.inst474.tab") == "edu.umd.inst474.tum"
+              && Rename.oldID(for: "edu.umd.inst474.tab.dev") == "edu.umd.inst474.tum.dev"
+              && Rename.oldID(for: "com.example.other") == nil
+              && Keychain.oldName(CursorAuth.service) == "TUM Cursor sign-in"
+              && Keychain.oldName(GitHubAuth.service) == "TUM GitHub sign-in"
+              && Keychain.oldName(GeminiAuth.service) == "TUM Gemini sign-in")
+        check("Only installed apps count for apps TAB can't read, never a leftover folder",
               Catalog.all.filter { $0.providerID == nil }.allSatisfy { $0.markers.isEmpty }
               && !Catalog.all.contains { ["lovable", "canva", "capcut"].contains($0.id) })
         // Coming soon: each app once, with a real logo; one found on this Mac moves to
@@ -333,7 +355,7 @@ enum SelfTest {
               && !soonStore.readyToConnect.contains { $0.id == "manus" }
               && !plannedIDs.contains("midjourney"))
         let fb = Feedback.issueURL("  Pill stays yellow + won't clear\nafter reset  ")?.absoluteString ?? ""
-        check("Feedback opens a filled-in GitHub issue on TUM's repo, never an empty one",
+        check("Feedback opens a filled-in GitHub issue on TAB's repo, never an empty one",
               fb.hasPrefix(Feedback.repo + "/issues/new?title=Feedback") && fb.contains("%2B") && fb.contains("body=")
               && Feedback.issueURL("   \n ") == nil
               && (Feedback.issueURL(String(repeating: "🙂", count: 2000))?.absoluteString.utf8.count ?? .max) <= Feedback.maxURLLength)
@@ -412,7 +434,7 @@ enum SelfTest {
         print("        more: \(Int(more.width))x\(Int(more.height))")
         check("More button matches the Connect circle", Int(more.height.rounded()) == Int(plug.height.rounded()) && abs(more.width - more.height) <= 1)
         let rowTabs = NSHostingView(rootView: SettingRow("Turn yellow at", subtitle: "When the icon turns yellow") { SegmentedChoice(selection: .constant(25.0), options: Thresholds.yellow) }).fittingSize
-        let rowSwitch = NSHostingView(rootView: SettingRow("Open at login", subtitle: "Start TUM when you turn on your Mac") { Toggle("", isOn: .constant(true)).labelsHidden().toggleStyle(.switch).controlSize(.regular) }).fittingSize
+        let rowSwitch = NSHostingView(rootView: SettingRow("Open at login", subtitle: "Start TAB when you turn on your Mac") { Toggle("", isOn: .constant(true)).labelsHidden().toggleStyle(.switch).controlSize(.regular) }).fittingSize
         let rowButton = NSHostingView(rootView: SettingRow("Welcome screens", subtitle: "See the welcome tour again") { Button("Show welcome screens again", systemImage: "play.fill") {}.iconButton() }).fittingSize
         check("Every settings row has the same height", Set([rowTabs.height, rowSwitch.height, rowButton.height].map { Int($0.rounded()) }).count == 1)
         check("All buttons share one height", Set([plug.height, back.height, text.height, main.height].map { Int($0.rounded()) }).count == 1)
@@ -423,7 +445,7 @@ enum SelfTest {
         return failures.isEmpty
     }
 
-    /// `TUM --snapshots <folder>` saves pictures of the main screens so the design can be
+    /// `TAB --snapshots <folder>` saves pictures of the main screens so the design can be
     /// checked against Figma without a person taking screenshots.
     static func snapshots(to dir: String) {
         // Glass buttons can't be drawn offscreen, so pictures use their plain look-alike.
@@ -441,7 +463,7 @@ enum SelfTest {
             try? png.write(to: folder.appendingPathComponent(name + ".png"))
             print("  saved \(name).png")
         }
-        // Shots use the real window background in the given appearance (TUM follows Light and Dark Mode).
+        // Shots use the real window background in the given appearance (TAB follows Light and Dark Mode).
         func shot<V: View>(_ v: V, _ size: NSSize, _ name: String, light: Bool = false) {
             let look = NSAppearance(named: light ? .aqua : .darkAqua)!
             var bg = NSColor.windowBackgroundColor.cgColor
@@ -495,7 +517,7 @@ enum SelfTest {
         let greenShot = Store.preview(apps: ["claude": 62, "codex": 80, "cursor": 70])
         greenShot.snapshots["codex"] = ProviderSnapshot(limits: Store.useItLimits("codex"), fetchedAt: Date())
         shot(PopoverView(store: greenShot, openSettings: {}, openAddMore: {}), NSSize(width: 340, height: 490), "dev-popover-green")
-        // Every official logo as TUM draws it, to check sizes side by side.
+        // Every official logo as TAB draws it, to check sizes side by side.
         let logoIDs = BrandLogos.all.keys.sorted()
         shot(LazyVGrid(columns: Array(repeating: GridItem(.fixed(70)), count: 6), spacing: 12) {
             ForEach(logoIDs, id: \.self) { id in
@@ -505,7 +527,7 @@ enum SelfTest {
                 }
             }
         }.padding(14), NSSize(width: 470, height: 260), "dev-logos")
-        // The white marks TUM draws in usage circles and pills, for the supported apps.
+        // The white marks TAB draws in usage circles and pills, for the supported apps.
         let marks = Store.preview(apps: ["claude": 62, "codex": 80, "cursor": 70, "grokbot": 55, "copilot": 90, "gemini": 75])
         shot(HStack(spacing: 14) {
             ForEach(["claude", "codex", "cursor", "grokbot", "copilot", "gemini"], id: \.self) { id in
@@ -550,7 +572,7 @@ enum SelfTest {
         shot(QuickView(store: yellow), NSSize(width: 360, height: 220), "dev-quick-view")
         // Settings rows outside the scrolling form (offscreen captures can't draw forms).
         shot(VStack(spacing: 0) {
-            SettingRow("Usage monitoring", subtitle: "Which limit TUM watches for you") { SegmentedChoice(selection: .constant(WatchMode.monthly), options: WatchMode.segments) }
+            SettingRow("Usage monitoring", subtitle: "Which limit TAB watches for you") { SegmentedChoice(selection: .constant(WatchMode.monthly), options: WatchMode.segments) }
             Divider()
             SettingRow("Turn yellow at", subtitle: "When the icon turns yellow") { SegmentedChoice(selection: .constant(25.0), options: Thresholds.yellow) }
             Divider()

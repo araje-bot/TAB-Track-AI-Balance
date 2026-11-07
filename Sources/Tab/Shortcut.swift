@@ -5,7 +5,7 @@ import Carbon.HIToolbox
 /// The quick view shortcut (AK): always two keys, one of ⌘, ⌥ or ⌃ plus one letter, number or
 /// Space. ⌘T and ⌥T are ready to pick; Custom records your own within the same rules, so it
 /// can't get complicated. Shortcuts macOS and every app rely on are refused with a reason.
-/// It is a registered shortcut, so it needs no permission and TUM never sees other keys.
+/// It is a registered shortcut, so it needs no permission and TAB never sees other keys.
 struct ShortcutChoice: Hashable {
     enum Modifier: String, CaseIterable {
         case command, option, control
@@ -186,7 +186,7 @@ struct ShortcutEditor: View {
 }
 
 /// Looks like a text field and works like one: it has the focus while the box is open, shows the
-/// keys pressed, and only listens inside TUM's own window. No keyboard monitoring, no permission.
+/// keys pressed, and only listens inside TAB's own window. No keyboard monitoring, no permission.
 private struct ShortcutField: View {
     @ObservedObject var store: Store
 

@@ -15,7 +15,7 @@ struct CatalogEntry {
     var markers: [String] = []
 }
 
-/// Known AI apps. Only apps people pay for and run out of are listed (AK): TUM is for making
+/// Known AI apps. Only apps people pay for and run out of are listed (AK): TAB is for making
 /// the most of a subscription, so other apps with "AI" in their name are not picked up.
 enum Catalog {
     static let all: [CatalogEntry] = [
@@ -65,7 +65,7 @@ enum Catalog {
         CatalogEntry(id: "windsurf", name: "Windsurf", category: "Code", appNames: ["Windsurf"],
                      bundleIDs: [], providerID: nil, source: "",
                      hint: "Usage view planned", symbol: "wind"),
-        // Lovable, Canva and CapCut have no way to read their credits at all, so TUM doesn't
+        // Lovable, Canva and CapCut have no way to read their credits at all, so TAB doesn't
         // list them (AK: no data, no point). docs/SYNC-PLAN.md has the details.
         CatalogEntry(id: "ollama", name: "Ollama", category: "Runs on your Mac", appNames: ["Ollama"],
                      bundleIDs: [], providerID: nil, source: "",
@@ -75,7 +75,7 @@ enum Catalog {
     /// Coming soon (AK): paid creative and work tools with a very large user base whose credits
     /// people run out of, and a real way to read them (docs/SYNC-PLAN.md). Midjourney, Kling and
     /// Runway have none yet, so they aren't promised. One that is installed on this Mac shows
-    /// with its real icon, still in Coming soon, until TUM can read it.
+    /// with its real icon, still in Coming soon, until TAB can read it.
     static let planned: [CatalogEntry] = [
         soon("elevenlabs", "ElevenLabs", "Voice", "waveform", "Credits view planned", apps: ["ElevenLabs", "ElevenReader"]),
         soon("higgsfield", "Higgsfield", "Video", "film", "Credits view planned"),
@@ -128,10 +128,10 @@ enum Detector {
             }
             let supported = e.providerID != nil
             let cred = e.providerID.flatMap { Providers.all[$0]?.credentialAvailable() } ?? false
-            // Folders count only for command-line tools TUM can read (Copilot). An app TUM can't
+            // Folders count only for command-line tools TAB can read (Copilot). An app TAB can't
             // read must really be installed: a leftover folder (an old Kiro or Lovable) isn't the app.
             let marked = supported && e.markers.contains { FileManager.default.fileExists(atPath: homeURL($0).path) }
-            // Gemini can always sign in, but only shows when it's on this Mac (app, CLI or TUM sign-in).
+            // Gemini can always sign in, but only shows when it's on this Mac (app, CLI or TAB sign-in).
             let present = e.id == "gemini" ? (url != nil || marked || GeminiAuth.signedIn) : (url != nil || cred || marked)
             if !present { continue }
             out.append(AIApp(id: e.id, name: e.name, category: e.category, appURL: url,

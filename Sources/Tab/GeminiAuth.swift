@@ -3,17 +3,17 @@ import AppKit
 import WebKit
 import Security
 
-/// TUM's own Google sign-in for the Gemini app's limits (AK, 2026-11-06): the 5-hour and weekly
+/// TAB's own Google sign-in for the Gemini app's limits (AK, 2026-11-06): the 5-hour and weekly
 /// limits that gemini.google.com/usage shows. Google stopped the Gemini CLI sign-in for personal,
 /// AI Pro and Ultra accounts on 2026-06-18, so this is the way most people's numbers can be read.
 ///
-/// The person signs in to Google in a small TUM window. That window keeps nothing on disk
-/// (non-persistent web data). TUM keeps only the google.com session cookies, in its own Keychain
+/// The person signs in to Google in a small TAB window. That window keeps nothing on disk
+/// (non-persistent web data). TAB keeps only the google.com session cookies, in its own Keychain
 /// item, and sends them only to gemini.google.com, for the same usage call the page makes.
 /// Nothing from another app or browser is read. Removing Gemini deletes the item.
 /// Path from CodexBar's Gemini app source (docs/SYNC-PLAN.md).
 enum GeminiAuth {
-    static let service = "TUM Gemini sign-in"
+    static let service = "TAB Gemini sign-in"
     private static let account = "google"
     static let host = "gemini.google.com"
 
@@ -27,7 +27,7 @@ enum GeminiAuth {
         return c.url!
     }
 
-    static var signedIn: Bool { Keychain.exists(service: service) }
+    static var signedIn: Bool { Keychain.ownExists(service: service) }
 
     // MARK: Cookies
 
@@ -80,13 +80,13 @@ enum GeminiAuth {
     }
 
     static func load(interactive: Bool) throws -> [Saved] {
-        let r = Keychain.read(service: service, account: account, interactive: interactive)
+        let r = Keychain.readOwn(service: service, account: account, interactive: interactive)
         if Keychain.isPermissionProblem(r.status) {
-            throw interactive ? ProviderError.denied("macOS didn't let TUM check Gemini. Try again and choose Always Allow.") : ProviderError.needsApproval
+            throw interactive ? ProviderError.denied("macOS didn't let TAB check Gemini. Try again and choose Always Allow.") : ProviderError.needsApproval
         }
         guard r.status == errSecSuccess, let d = r.data, let s = try? JSONDecoder().decode([Saved].self, from: d) else {
             if r.status == errSecSuccess { signOut() }   // unreadable: start clean next time
-            throw ProviderError.notSignedIn("Sign in to Google in TUM to see Gemini's limits.")
+            throw ProviderError.notSignedIn("Sign in to Google in TAB to see Gemini's limits.")
         }
         return s
     }
@@ -106,14 +106,14 @@ enum GeminiAuth {
     }
 
     static func signOut() {
-        let status = Keychain.delete(service: service)
+        let status = Keychain.deleteOwn(service: service)
         Diagnostics.log(status == errSecSuccess || status == errSecItemNotFound
                         ? "gemini sign-in: removed" : "gemini sign-in: remove failed (\(status))")
     }
 
     // MARK: Usage
 
-    /// The two limits from the page's reply, or nil when the reply isn't what TUM expects.
+    /// The two limits from the page's reply, or nil when the reply isn't what TAB expects.
     /// `signedOut` is true when Google answered but no one is signed in.
     static func parse(_ body: String) -> (limits: [UsageLimit], signedOut: Bool)? {
         var text = body.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -145,33 +145,33 @@ enum GeminiAuth {
         } catch ProviderError.expired {
             // Google ended the session: drop it, so the card shows Connect and opens the window again.
             signOut()
-            throw ProviderError.notSignedIn("Your Google sign-in in TUM ended. Click Connect to sign in again.")
+            throw ProviderError.notSignedIn("Your Google sign-in in TAB ended. Click Connect to sign in again.")
         }
     }
 
     /// One usage call with these cookies. Returns the limits and any cookies Google refreshed.
     /// `log` is false while the sign-in window waits, so its checks don't fill the log.
     static func query(_ saved: [Saved], log: Bool = true) async throws -> ([UsageLimit], [Saved]) {
-        guard let cookie = header(saved) else { throw ProviderError.notSignedIn("Sign in to Google in TUM to see Gemini's limits.") }
+        guard let cookie = header(saved) else { throw ProviderError.notSignedIn("Sign in to Google in TAB to see Gemini's limits.") }
         var r = URLRequest(url: usageURL)
         r.setValue(cookie, forHTTPHeaderField: "Cookie")
         r.setValue("application/json", forHTTPHeaderField: "Accept")
         r.setValue("https://\(host)/usage", forHTTPHeaderField: "Referer")
         let (data, resp) = try await HTTP.raw(r, provider: "gemini", host: host, log: log)
         let fresh = keep(HTTPCookie.cookies(withResponseHeaderFields: resp.allHeaderFields as? [String: String] ?? [:], for: usageURL))
-        // A redirect means Google sent TUM to its sign-in page: the session ended.
+        // A redirect means Google sent TAB to its sign-in page: the session ended.
         if (300..<400).contains(resp.statusCode) || resp.statusCode == 401 || resp.statusCode == 403 {
-            throw ProviderError.expired("Your Google sign-in in TUM ended. Click Connect to sign in again.")
+            throw ProviderError.expired("Your Google sign-in in TAB ended. Click Connect to sign in again.")
         }
         guard resp.statusCode == 200 else { throw ProviderError.http(resp.statusCode) }
         guard let p = parse(String(decoding: data, as: UTF8.self)) else { throw ProviderError.format("Gemini") }
-        if p.signedOut { throw ProviderError.expired("Your Google sign-in in TUM ended. Click Connect to sign in again.") }
+        if p.signedOut { throw ProviderError.expired("Your Google sign-in in TAB ended. Click Connect to sign in again.") }
         return (p.limits, fresh)
     }
 
     // MARK: Sign-in window
 
-    /// Opens TUM's Google sign-in window and waits until Gemini's limits can be read with it.
+    /// Opens TAB's Google sign-in window and waits until Gemini's limits can be read with it.
     /// Throws CancellationError if the person closes the window or clicks Cancel.
     @MainActor
     static func signIn() async throws {
@@ -206,7 +206,7 @@ private final class SignInWindow: NSObject, WKNavigationDelegate, NSWindowDelega
         web.navigationDelegate = self
         let w = NSWindow(contentRect: web.frame, styleMask: [.titled, .closable, .resizable], backing: .buffered, defer: false)
         w.title = "Sign in to Google"
-        w.subtitle = "For Gemini's limits in TUM"
+        w.subtitle = "For Gemini's limits in TAB"
         w.contentView = web
         w.isReleasedWhenClosed = false
         w.delegate = self
@@ -263,7 +263,7 @@ private final class SignInWindow: NSObject, WKNavigationDelegate, NSWindowDelega
             // Cancelled, closed or timed out while the check ran: keep nothing.
             guard let self, self.done != nil else { return }
             guard GeminiAuth.save(GeminiAuth.merge(saved, fresh), interactive: true, create: true) else {
-                self.finish(.failure(ProviderError.denied("TUM couldn't finish signing in. Try again.")))
+                self.finish(.failure(ProviderError.denied("TAB couldn't finish signing in. Try again.")))
                 return
             }
             Diagnostics.log("gemini sign-in: done")

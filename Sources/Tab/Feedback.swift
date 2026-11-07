@@ -1,13 +1,13 @@
 import SwiftUI
 import AppKit
 
-/// Feedback anyone can send (AK): no GitHub account, no browser, no sign-in. TUM sends the note
-/// straight to a Google Form the TUM team owns; Google can email each one to the team and keeps
-/// them all in a sheet. Only what the person types, an optional reply email, and the TUM and
+/// Feedback anyone can send (AK): no GitHub account, no browser, no sign-in. TAB sends the note
+/// straight to a Google Form the TAB team owns; Google can email each one to the team and keeps
+/// them all in a sheet. Only what the person types, an optional reply email, and the TAB and
 /// macOS versions are sent. Never diagnostics. Until the form is set up, and for people who
 /// prefer it, a filled-in GitHub issue is the other way.
 enum Feedback {
-    static let repo = "https://github.com/araje-bot/TUM-Token-Utilization-Monitor"
+    static let repo = "https://github.com/araje-bot/TAB-Track-AI-Balance"
     static let maxLength = 2000
     /// GitHub turns away very long links, so emoji-heavy text is trimmed until the link fits.
     static let maxURLLength = 8000
@@ -24,14 +24,14 @@ enum Feedback {
                 && [message, email, version].allSatisfy { $0.range(of: #"^entry\.[0-9]{1,15}$"#, options: .regularExpression) != nil }
         }
     }
-    /// "TUM feedback" in the team's Google Forms. Only these public ids, never a key.
+    /// "TAB feedback" in the team's Google Forms. Only these public ids, never a key.
     static var config = Config(formID: "1FAIpQLSdsAwcxngtGm5yRde79Wc-SBgOTu3JgHa7oL_ggH031kmMnRA",
                                message: "entry.1415545933", email: "entry.119013934", version: "entry.367937481")
 
     static var versionLine: String {
         let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "dev"
         let os = ProcessInfo.processInfo.operatingSystemVersion
-        return "TUM \(version), macOS \(os.majorVersion).\(os.minorVersion)"
+        return "TAB \(version), macOS \(os.majorVersion).\(os.minorVersion)"
     }
 
     static func clean(_ text: String) -> String {
@@ -56,7 +56,7 @@ enum Feedback {
         return (200..<300).contains(await HTTP.postForm(url, fields: fields(text, email: email), host: "docs.google.com"))
     }
 
-    /// The same form in the browser, already filled in, if sending from TUM didn't work.
+    /// The same form in the browser, already filled in, if sending from TAB didn't work.
     static func formURL(_ text: String, email: String) -> URL? {
         guard config.ready, var c = URLComponents(string: "https://docs.google.com/forms/d/e/\(config.formID)/viewform") else { return nil }
         // The reply email stays out of the link, so it never lands in browser history.
@@ -96,11 +96,11 @@ struct FeedbackLink: View {
         Button("Any issues? Let us know", action: action)
             .buttonStyle(.link)
             .font(.callout)
-            .help("Send feedback to the TUM team")
+            .help("Send feedback to the TAB team")
     }
 }
 
-/// A text box, an optional reply email and Send. Sending stays in TUM; nothing opens.
+/// A text box, an optional reply email and Send. Sending stays in TAB; nothing opens.
 struct FeedbackForm: View {
     var sent: () -> Void = {}
     @State private var text = ""
@@ -118,7 +118,7 @@ struct FeedbackForm: View {
         if phase == .sent {
             VStack(spacing: 10) {
                 Image(systemName: "checkmark.circle.fill").font(.largeTitle).foregroundStyle(Palette.green)
-                Text("Thanks! The TUM team got your note.").font(.headline)
+                Text("Thanks! The TAB team got your note.").font(.headline)
                 Text(Feedback.replyEmail(email) != nil ? "We'll reply by email if we need more." : "We read every one.")
                     .font(.callout).foregroundStyle(.secondary)
             }
@@ -166,10 +166,10 @@ struct FeedbackForm: View {
                     Text("That email doesn't look right. Leave it empty if you don't need a reply.")
                         .foregroundStyle(Palette.amberText)
                 } else if direct {
-                    Text("Sent to the TUM team through Google Forms. No account needed. Leave out anything private.")
+                    Text("Sent to the TAB team through Google Forms. No account needed. Leave out anything private.")
                         .foregroundStyle(.secondary)
                 } else {
-                    Text("This opens a public issue on TUM's GitHub page, so you can check it before sending. Leave out anything private.")
+                    Text("This opens a public issue on TAB's GitHub page, so you can check it before sending. Leave out anything private.")
                         .foregroundStyle(.secondary)
                 }
             }

@@ -2,7 +2,7 @@ import Foundation
 import AppKit
 import CoreServices
 
-/// Watches the folders AI tools write to while you use them, so TUM can check
+/// Watches the folders AI tools write to while you use them, so TAB can check
 /// an app right after it was used instead of waiting for the next timer.
 /// Only file paths are looked at here. File contents are read only for Codex (see CodexLocal).
 final class ActivityWatcher {
@@ -79,7 +79,7 @@ final class ActivityWatcher {
 }
 
 /// Codex writes its own usage numbers into each session file as you work,
-/// so TUM can read them on your Mac without contacting OpenAI.
+/// so TAB can read them on your Mac without contacting OpenAI.
 enum CodexLocal {
     static var home: URL {
         if let h = ProcessInfo.processInfo.environment["CODEX_HOME"] { return URL(fileURLWithPath: h) }

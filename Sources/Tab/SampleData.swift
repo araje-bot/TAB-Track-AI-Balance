@@ -23,7 +23,7 @@ extension Store {
                 UsageLimit(kind: .long, label: "Week", percentLeft: min(100, pct + 35), resetsAt: Date().addingTimeInterval(4 * 24 * hour))]
     }
 
-    /// A weekly limit that resets in 9 hours with 85% left: TUM's "use it" recommendation.
+    /// A weekly limit that resets in 9 hours with 85% left: TAB's "use it" recommendation.
     static func useItLimits(_ id: String) -> [UsageLimit] {
         [UsageLimit(kind: .short, label: "5 hours", percentLeft: 90, resetsAt: Date().addingTimeInterval(3 * 3600)),
          UsageLimit(kind: .long, label: "Week", percentLeft: 85, resetsAt: Date().addingTimeInterval(9 * 3600))]
@@ -34,7 +34,7 @@ extension Store {
                         onboardingDone: Bool = true, threshold: Double = 25,
                         mode: WatchMode = .session) -> Store {
         // A scratch settings suite, so sample data never touches the real settings.
-        let suite = "edu.umd.inst474.tum.preview"
+        let suite = "edu.umd.inst474.tab.preview"
         let scratch = UserDefaults(suiteName: suite) ?? UserDefaults()
         scratch.removePersistentDomain(forName: suite)
         let s = Store(defaults: scratch)

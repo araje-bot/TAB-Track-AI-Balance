@@ -19,10 +19,10 @@ final class Store: ObservableObject {
     @Published var tick = Date()
 
     /// "Usage monitoring" (AK): the default view, chosen in onboarding or Settings. It is the limit
-    /// the pill watches, and every time TUM opens its tabs start here.
+    /// the pill watches, and every time TAB opens its tabs start here.
     @Published var watch: WatchMode { didSet { defaults.set(watch.rawValue, forKey: "mode"); mode = watch; updateAlerts() } }
     /// The tab the popover shows right now. Clicking a tab only changes this view, never the
-    /// default or the pill; opening TUM again starts on `watch`.
+    /// default or the pill; opening TAB again starts on `watch`.
     @Published var mode: WatchMode
     /// "Turn yellow at": an app at or under this % left turns the icon into the yellow pill.
     @Published var threshold: Double { didSet { defaults.set(threshold, forKey: "threshold"); updateAlerts() } }
@@ -32,7 +32,7 @@ final class Store: ObservableObject {
     /// Bump when onboarding changes, so everyone sees the new version once.
     static let onboardingVersion = 3
 
-    /// Identifies this installed copy of TUM: when its program file was built. Installing a
+    /// Identifies this installed copy of TAB: when its program file was built. Installing a
     /// new build from the DMG changes it, so the welcome screens show again on every install.
     static var buildStamp: Int {
         guard let exe = Bundle.main.executableURL,
@@ -62,7 +62,7 @@ final class Store: ObservableObject {
             if defaults === UserDefaults.standard { Keychain.silentReadsAllowed = onboardingDone }
         }
     }
-    /// Off by default: TUM changes its icon and does not pop things up unless asked.
+    /// Off by default: TAB changes its icon and does not pop things up unless asked.
     @Published var headsUpOnOpen: Bool { didSet { defaults.set(headsUpOnOpen, forKey: "headsUpOnOpen") } }
     /// The shortcut the person picked, and the one actually working (another app may own the pick).
     @Published var shortcutChoice: ShortcutChoice { didSet { defaults.set(shortcutChoice.stored, forKey: "shortcutChoice"); onShortcutChange?() } }
@@ -125,7 +125,7 @@ final class Store: ObservableObject {
         if !ShortcutChoice.presets.contains(shortcutChoice) { return "Your own keys, \(shortcutChoice.glyphs)" }
         return normal
     }
-    /// TUM is always in the Dock while one of its windows is open. This keeps it there all the time.
+    /// TAB is always in the Dock while one of its windows is open. This keeps it there all the time.
     @Published var alwaysInDock: Bool { didSet { defaults.set(alwaysInDock, forKey: "alwaysInDock"); onDockSettingChange?() } }
     var onDockSettingChange: (() -> Void)?
     private var lastHeadsUp: [String: Date] = [:]
@@ -177,7 +177,7 @@ final class Store: ObservableObject {
         let t = defaults.double(forKey: "threshold")
         // Yellow always sits above red's 10% (the old 10% option moves to 20%).
         threshold = Thresholds.yellow.map(\.0).contains(t) ? t : (t > 0 && t <= 15 ? 20 : 25)
-        // Keep only apps TUM can read (AK: a connection with no numbers is no use).
+        // Keep only apps TAB can read (AK: a connection with no numbers is no use).
         // Apps connected with no numbers by older versions, and unknown ones, go.
         connected = (defaults.stringArray(forKey: "connected") ?? []).filter { Providers.all[$0] != nil }
         let seen = Self.onboardingSeenForThisCopy()
@@ -209,18 +209,18 @@ final class Store: ObservableObject {
         app(id)?.name ?? Catalog.entry(id)?.name ?? id
     }
 
-    /// Ready to connect: apps on this Mac that TUM can read.
+    /// Ready to connect: apps on this Mac that TAB can read.
     var readyToConnect: [AIApp] { detected.filter(\.supported) }
 
-    /// Coming soon: apps on this Mac that TUM can't read yet (first), then the planned apps.
-    /// Nothing here can be connected until TUM can show real numbers for it (AK).
+    /// Coming soon: apps on this Mac that TAB can't read yet (first), then the planned apps.
+    /// Nothing here can be connected until TAB can show real numbers for it (AK).
     var comingSoon: [AIApp] {
         let waiting = detected.filter { !$0.supported }
         let found = Set(detected.map(\.id))
         return waiting + Catalog.plannedApps.filter { !found.contains($0.id) }
     }
 
-    /// True when TUM can read this app's usage. Only these can be connected.
+    /// True when TAB can read this app's usage. Only these can be connected.
     func readsUsage(_ id: String) -> Bool { Providers.all[id] != nil }
     func symbol(_ id: String) -> String { Catalog.entry(id)?.symbol ?? "sparkle" }
     func source(_ id: String) -> String { Catalog.entry(id)?.source ?? "" }
@@ -260,14 +260,14 @@ final class Store: ObservableObject {
     }
 
     /// Connects and checks it really works. Returns nil on success or a short reason.
-    /// The GitHub code to show while the person approves TUM on github.com (Copilot sign-in).
+    /// The GitHub code to show while the person approves TAB on github.com (Copilot sign-in).
     @Published var githubCode: GitHubAuth.DeviceCode?
 
     func connectAndCheck(_ id: String) async -> String? {
-        // TUM can't read it yet, so there is nothing to connect.
-        guard Providers.all[id] != nil else { return "TUM can't show usage for this app yet." }
+        // TAB can't read it yet, so there is nothing to connect.
+        guard Providers.all[id] != nil else { return "TAB can't show usage for this app yet." }
         var signedInNow = false
-        // Cursor and Grok Bot need TUM's own Cursor sign-in first (opens the browser).
+        // Cursor and Grok Bot need TAB's own Cursor sign-in first (opens the browser).
         if (id == "cursor" || id == "grokbot") && !CursorAuth.signedIn {
             do { try await CursorAuth.signIn(); signedInNow = true }
             catch is CancellationError { return "Cancelled." }
@@ -304,21 +304,21 @@ final class Store: ObservableObject {
         connected.removeAll { $0 == id }
         errors[id] = nil
         // A sign-in made just now that didn't end in a working connection is dropped again, so no
-        // token stays behind with nothing in TUM to remove it (security review).
+        // token stays behind with nothing in TAB to remove it (security review).
         if signedInNow {
             if id == "copilot" { GitHubAuth.signOut() } else if id == "gemini" { GeminiAuth.signOut() } else { CursorAuth.signOut() }
         }
         return reason
     }
 
-    /// Disconnecting also signs out of that service inside TUM.
+    /// Disconnecting also signs out of that service inside TAB.
     func disconnect(_ id: String) {
         connected.removeAll { $0 == id }
         snapshots[id] = nil
         errors[id] = nil
         needsApproval.remove(id)
         if id == "claude" { ClaudeDesktop.forget() }
-        // TUM's own Cursor sign-in goes away once nothing uses it.
+        // TAB's own Cursor sign-in goes away once nothing uses it.
         if id == "copilot", self === Store.shared, !Store.isPreview, GitHubAuth.signedIn { GitHubAuth.signOut() }
         if id == "gemini", self === Store.shared, !Store.isPreview, GeminiAuth.signedIn { GeminiAuth.signOut() }
         // Only when the person removes Cursor or Grok Bot themselves, never as a side effect.
@@ -360,7 +360,7 @@ final class Store: ObservableObject {
         }
     }
 
-    /// Opening TUM syncs on its own (AK): nobody should have to click Sync to see current numbers.
+    /// Opening TAB syncs on its own (AK): nobody should have to click Sync to see current numbers.
     /// Anything older than a minute is checked again, all apps at once. Each service's minimum
     /// gap and any "slow down" reply still hold.
     func refreshIfOld(_ only: String? = nil) async {
@@ -472,9 +472,9 @@ final class Store: ObservableObject {
             noteFailure(id)
             if useCodexFileInstead(id) { return }
             errors[id] = e.errorDescription
-            // Cursor ended TUM's sign-in: the card shows Connect again, which opens the browser.
+            // Cursor ended TAB's sign-in: the card shows Connect again, which opens the browser.
             if case .notSignedIn = e, id == "cursor" || id == "grokbot", !CursorAuth.signedIn { needsApproval.insert(id) }
-            // The same for Gemini when Google ended TUM's sign-in and no Gemini CLI sign-in is here.
+            // The same for Gemini when Google ended TAB's sign-in and no Gemini CLI sign-in is here.
             if case .notSignedIn = e, id == "gemini", !GeminiAuth.signedIn, !GeminiProvider().hasCLISignIn { needsApproval.insert(id) }
             Diagnostics.log("\(id) error: \(Diagnostics.describe(e))")
         } catch {
@@ -558,7 +558,7 @@ final class Store: ObservableObject {
     }
 
     var pillHelp: String {
-        guard let u = urgent, let l = watchLimit(u.id) else { return "TUM: all good" }
+        guard let u = urgent, let l = watchLimit(u.id) else { return "TAB: all good" }
         let kind: String
         switch l.kind {
         case .short: kind = "Session"
@@ -641,7 +641,7 @@ final class Store: ObservableObject {
     private var turnStarted: Date?
     /// When each app last had the pill. Cleared when it crosses into a new level, so it counts as news.
     private var lastTurn: [String: Date] = [:]
-    /// True while the person is looking at TUM (popover or hover tip): the pill never changes
+    /// True while the person is looking at TAB (popover or hover tip): the pill never changes
     /// under their eyes, except for news.
     var holdPill = false
 
@@ -686,7 +686,7 @@ final class Store: ObservableObject {
 
     /// Moves the pill on when it's time. Called on every update and every few seconds by the menu bar.
     /// News takes the pill at once; otherwise the turn lasts `pillTurnLength`, and never ends while
-    /// the person is looking at TUM.
+    /// the person is looking at TAB.
     func rotatePill(now: Date = Date()) {
         let c = pillCandidates
         let ids = Set(c.map(\.id))
@@ -706,7 +706,7 @@ final class Store: ObservableObject {
         lastTurn[next.id] = now
     }
 
-    // MARK: Use it before it resets (AK: TUM's differentiator)
+    // MARK: Use it before it resets (AK: TAB's differentiator)
 
     /// An app with a lot left on a weekly, monthly or daily limit that resets soon, so that
     /// usage would otherwise go to waste. Checked on every refresh: at launch, on wake, and
@@ -754,7 +754,7 @@ final class Store: ObservableObject {
         useItSeen = [:]
     }
 
-    /// Clicking the green pill opens TUM on the tab the tip is about (weekly, monthly), so the
+    /// Clicking the green pill opens TAB on the tab the tip is about (weekly, monthly), so the
     /// number in the pill is the one you see (AK).
     func showTipTab() {
         if let p = pillState, p.level == .use, let t = useItTips.first(where: { $0.id == p.id }) {
@@ -796,7 +796,7 @@ final class Store: ObservableObject {
     }
 
     /// What the menu bar shows. Yellow and red warnings always win. Otherwise a new "use it"
-    /// recommendation shows as the green pill until TUM is opened.
+    /// recommendation shows as the green pill until TAB is opened.
 
 
     /// The positive status line: short, plain, a suggestion (AK). One app says what's left and
@@ -847,7 +847,7 @@ final class Store: ObservableObject {
         updating.insert(id)
         let start = Date()
         // A manual update skips the wait, but at most once a minute, so clicking can't hammer a
-        // service that asked TUM to slow down (security review M4).
+        // service that asked TAB to slow down (security review M4).
         if (lastAttempt[id] ?? .distantPast).timeIntervalSinceNow < -60 { backoff[id] = nil; failures[id] = nil }
         await refresh(id, interactive: true, manual: true)
         let wait = 0.8 + start.timeIntervalSinceNow
@@ -864,7 +864,7 @@ final class Store: ObservableObject {
 
     /// A connected app's one-line status. Normally just "Connected" (AK: less clutter). Right
     /// after "Sync" it says "Connected · Syncing…", then "Connected · Just now" for a few
-    /// seconds, then goes back to "Connected". Apps TUM can't read yet say so.
+    /// seconds, then goes back to "Connected". Apps TAB can't read yet say so.
     func connectedText(_ id: String) -> String {
         if !readsUsage(id) { return "Connected · No data yet" }
         if updating.contains(id) { return "Connected · Syncing…" }
