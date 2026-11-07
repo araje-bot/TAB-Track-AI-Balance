@@ -76,7 +76,7 @@ Some AI apps, like Claude and Zed, save your sign-in in your Mac's Keychain, the
 - **Your password goes to macOS, not to TAB.** This box comes from macOS itself. TAB never sees what you type.
 - **Why TAB needs it.** TAB uses the sign-in your AI app already saved to ask that app's own company one thing, how much you have left. Claude's goes only to Anthropic, Zed's only to Zed. That answer is the number in your menu bar.
 - **Choose Always Allow.** TAB checks again in the background whenever you use an app, so your numbers stay current without you doing anything. Always Allow lets it read that one item quietly from then on. Allow works only that one time, so the next check can't read it and TAB asks you to connect again. Deny means TAB can't show that app.
-- **It never leaves your Mac.** TAB has no server, no account and no analytics. The people who made TAB never see your sign-in or your usage. TAB doesn't change, copy or upload it, and the code is all here for anyone to check.
+- **It goes nowhere else.** TAB has no server, no account and no analytics. The people who made TAB never see your sign-in or your usage. TAB doesn't change the sign-in, keep its own copy, or send it anywhere but that app's company. The code is all here for anyone to check.
 
 After a TAB update, macOS may ask once more, since it ties Always Allow to the exact version of the app.
 
