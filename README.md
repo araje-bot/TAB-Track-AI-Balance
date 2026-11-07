@@ -67,10 +67,23 @@ Or drag TAB from Applications to the Trash.
 
 TAB only asks for usage numbers. It does not save your prompts, chats, files or code, and it does not change the sign-ins other apps keep.
 
+## Why macOS asks for your password
+
+<img src="docs/images/keychain.png" alt="The macOS box that asks to let TAB use a sign-in stored in your keychain, with Always Allow, Deny and Allow buttons" width="420">
+
+Some AI apps, like Claude and Zed, save your sign-in in your Mac's Keychain, the locked safe macOS uses for passwords. When TAB connects one of them, macOS asks you first, because a new app wants to open that safe.
+
+- **Your password goes to macOS, not to TAB.** This box comes from macOS itself. TAB never sees what you type.
+- **Why TAB needs it.** TAB uses the sign-in your AI app already saved to ask that app's own company one thing, how much you have left. Claude's goes only to Anthropic, Zed's only to Zed. That answer is the number in your menu bar.
+- **Choose Always Allow.** TAB checks again in the background whenever you use an app, so your numbers stay current without you doing anything. Always Allow lets it read that one item quietly from then on. Allow works only that one time, so the next check can't read it and TAB asks you to connect again. Deny means TAB can't show that app.
+- **It never leaves your Mac.** TAB has no server, no account and no analytics. The people who made TAB never see your sign-in or your usage. TAB doesn't change, copy or upload it, and the code is all here for anyone to check.
+
+After a TAB update, macOS may ask once more, since it ties Always Allow to the exact version of the app.
+
 ## Good to know
 
 - TAB never asks for your password. When you connect Gemini, you type it on Google's own sign-in page. TAB doesn't read or keep it. TAB does not need keyboard, screen or accessibility permissions.
-- macOS may ask once about your Keychain when you connect Claude or Zed. Choose Always Allow.
+- macOS may ask for your password once when you connect Claude or Zed. See [why](#why-macos-asks-for-your-password).
 - The installer downloads one exact release and checks it against a fingerprint written into the script. A different file is deleted, not installed.
 - All of TAB's code is in this repository, so anyone can read exactly what it does.
 
