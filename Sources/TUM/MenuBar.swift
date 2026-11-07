@@ -415,21 +415,13 @@ final class QuickPanelController {
         panel.contentView = host
     }
 
-    /// Shows the panel above the app switcher when its frame is known, otherwise near the top of the screen.
-    func show(above switcher: CGRect? = nil) {
+    /// Shows the panel in the middle of the screen you're on, both ways, like the ⌘Tab switcher (AK).
+    func show() {
+        guard let screen = NSScreen.main else { return }
         let size = host.fittingSize
-        var frame: NSRect
-        if let r = switcher, let screen = NSScreen.screens.first(where: { $0.frame.intersects(r) }) ?? NSScreen.main {
-            frame = NSRect(x: r.midX - size.width / 2, y: r.maxY + 14, width: size.width, height: size.height)
-            let vis = screen.visibleFrame
-            if frame.maxY > vis.maxY { frame.origin.y = vis.maxY - size.height }
-            frame.origin.x = min(max(frame.minX, vis.minX + 8), vis.maxX - size.width - 8)
-        } else {
-            guard let screen = NSScreen.main else { return }
-            frame = NSRect(x: screen.frame.midX - size.width / 2, y: screen.visibleFrame.maxY - 40 - size.height,
-                           width: size.width, height: size.height)
-        }
-        panel.setFrame(frame, display: true)
+        let f = screen.frame
+        panel.setFrame(NSRect(x: (f.midX - size.width / 2).rounded(), y: (f.midY - size.height / 2).rounded(),
+                              width: size.width, height: size.height), display: true)
         panel.orderFrontRegardless()
     }
 

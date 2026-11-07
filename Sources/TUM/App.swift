@@ -123,8 +123,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var status: StatusItemController!
     private var quick: QuickPanelController!
     private let shortcut = GlanceShortcut()      // ⌥ T by default, opens the quick view
-    private var pressedAt = Date.distantPast
-    private var autoHide: DispatchWorkItem?
     private let activity = ActivityWatcher()
     private var onboarding: WindowHost?
     private var settings: WindowHost?
@@ -261,17 +259,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     // MARK: Quick view
 
-    /// Tap the shortcut (⌥ T by default) to show it for a few seconds, or hold it to peek and let go to hide.
+    private var autoHide: DispatchWorkItem?
+
+    /// Hold the shortcut (⌘ + T by default) to see every app, and let go to hide it (AK). The
+    /// release comes from the same registered shortcut, so TUM still never watches the keyboard.
+    /// A held key can repeat the press, so showing again while open does nothing.
     private func shortcutPressed() {
-        if quick.isVisible { hideQuick(); return }
-        pressedAt = Date()
+        autoHide?.cancel()   // a heads-up already showing stays for as long as the keys are held
+        guard !quick.isVisible else { return }
         showQuick(for: nil)
     }
 
     private func shortcutReleased() {
-        if -pressedAt.timeIntervalSinceNow > 0.5 { hideQuick() } else { showQuick(for: 5) }
+        hideQuick()
     }
 
+    /// Shows the quick view, for a few seconds when `seconds` is set (the heads-up when you switch
+    /// into a low app, and the Developer menu).
     private func showQuick(for seconds: Double?) {
         autoHide?.cancel()
         store.mode = store.watch   // the quick view shows the default view too (AK)

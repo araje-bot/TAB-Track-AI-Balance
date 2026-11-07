@@ -109,7 +109,7 @@ struct SettingsView: View {
             Section("Quick view") {
                 // A shortcut another app owns is explained in the row's own subtitle, so choosing one
                 // never adds or removes a row and the form doesn't jump (AK).
-                SettingRow("See all apps", subtitle: store.shortcutSubtitle("Keys that show every app at once")) {
+                SettingRow("See all apps", subtitle: store.shortcutSubtitle("Hold the keys to see every app")) {
                     ShortcutPicker(store: store)
                 }
             }

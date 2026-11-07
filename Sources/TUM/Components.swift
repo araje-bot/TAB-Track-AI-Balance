@@ -574,10 +574,10 @@ final class ActionItem: NSMenuItem {
 }
 
 /// The quick view shortcut in a plain sentence, with Apple's key symbols:
-/// "Press ⌘T to see all apps". VoiceOver reads it as words.
+/// "Hold ⌘ + T to see all apps": the quick view shows while the keys are held. VoiceOver reads it as words.
 struct ShortcutHint: View {
     @ObservedObject var store = Store.shared
-    var before = "Press"
+    var before = "Hold"
     var after = "to see all apps"
 
     var body: some View {
