@@ -3,7 +3,7 @@ import SwiftUI
 import AppKit
 
 // Xcode canvas for every TAB screen and state, with sample data.
-// Open TUMApp/Package.swift in Xcode, open this file, then press ⌥⌘↩ to show the canvas
+// Open TABApp/Package.swift in Xcode, open this file, then press ⌥⌘↩ to show the canvas
 // (⌥⌘P refreshes it). Pick a preview from the tabs at the top of the canvas.
 // Previews never read sign-ins or call any service (see Store.isPreview).
 
