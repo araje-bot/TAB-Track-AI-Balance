@@ -118,6 +118,12 @@ struct PopoverView: View {
                     .animation(Motion.standard, value: store.tabApps)
                 }
                 .frame(maxHeight: .infinity)
+                // A tab that lists other apps swaps the whole grid at once (AK). Fading tile by tile
+                // drew the old and new apps on top of each other, with the old tiles' other limits
+                // flashing in, so leaving Monthly looked like a reload. A tab with the same apps
+                // keeps this grid, and only the numbers move.
+                .id(store.tabApps)
+                .transition(.identity)
             }
 
             HStack(spacing: 8) {

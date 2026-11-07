@@ -381,7 +381,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func showSettings() {
         if settings == nil {
-            settings = WindowHost(size: NSSize(width: 580, height: 660), title: "Advanced settings", subtitle: "Manage your apps, alerts and shortcut",
+            settings = WindowHost(size: NSSize(width: 580, height: 660), title: "Advanced settings",
                                   root: SettingsView(store: store, showWelcome: { [weak self] in
                                       self?.settings?.window.close()
                                       self?.showOnboarding()
