@@ -61,7 +61,7 @@ Or drag TAB from Applications to the Trash.
 ## How TAB works
 
 1. **It finds your AI apps.** TAB checks which supported apps are on your Mac.
-2. **It uses the sign-in you already have.** Most AI apps keep you signed in on your Mac, and TAB uses that, so there is nothing new to log in to. For Cursor, and for GitHub Copilot when it isn't signed in yet, you sign in once in your browser. For Gemini, you sign in once on Google's own page in a small TAB window. TAB keeps that sign-in in your Mac's Keychain and deletes it when you remove the app.
+2. **It uses the sign-in you already have.** Most AI apps keep you signed in on your Mac, and TAB uses that, so there is nothing new to log in to. For Cursor, and for GitHub Copilot when it isn't signed in yet, you sign in once in your browser. For Gemini, you sign in once on Google's own page in a small TAB window. That sign-in works for your whole Google account, so TAB sends it only to gemini.google.com. TAB keeps these sign-ins in your Mac's Keychain and deletes them when you remove the app. Cursor and Grok Bot share one, so it goes once both are removed.
 3. **It asks each app's own company how much is left.** Claude's numbers come from Anthropic, Codex's from OpenAI, and so on. TAB has no server, no account and no analytics, so nothing goes anywhere else, except feedback you choose to send.
 4. **It shows the answer in your menu bar.** TAB checks again whenever you use an app, and every so often in between.
 
@@ -76,20 +76,20 @@ Some AI apps, like Claude and Zed, save your sign-in in your Mac's Keychain, the
 - **Your password goes to macOS, not to TAB.** This box comes from macOS itself. TAB never sees what you type.
 - **Why TAB needs it.** TAB uses the sign-in your AI app already saved to ask that app's own company one thing, how much you have left. Claude's goes only to Anthropic, Zed's only to Zed. That answer is the number in your menu bar.
 - **Choose Always Allow.** TAB checks again in the background whenever you use an app, so your numbers stay current without you doing anything. Always Allow lets it read that one item quietly from then on. Allow works only that one time, so the next check can't read it and TAB asks you to connect again. Deny means TAB can't show that app.
-- **It goes nowhere else.** TAB has no server, no account and no analytics. The people who made TAB never see your sign-in or your usage. TAB doesn't change the sign-in, keep its own copy, or send it anywhere but that app's company. The code is all here for anyone to check.
+- **It goes nowhere else.** TAB has no server, no account and no analytics. The people who made TAB never see your sign-in or your usage. TAB doesn't change that sign-in or save a copy. It reads it only when it checks, and sends it nowhere but that app's company. The code is all here for anyone to check.
 
 After a TAB update, macOS may ask once more, since it ties Always Allow to the exact version of the app.
 
 ## Good to know
 
-- TAB never asks for your password. When you connect Gemini, you type it on Google's own sign-in page. TAB doesn't read or keep it. TAB does not need keyboard, screen or accessibility permissions.
+- TAB never asks for your password. When you connect Gemini, you type it on Google's own sign-in page, shown in a small TAB window. TAB doesn't read or save your password. TAB does not need keyboard, screen or accessibility permissions.
 - macOS may ask for your password once when you connect Claude or Zed. See [why](#why-macos-asks-for-your-password).
 - The installer downloads one exact release and checks it against a fingerprint written into the script. A different file is deleted, not installed.
 - All of TAB's code is in this repository, so anyone can read exactly what it does.
 
 ## Feedback
 
-Click **Any issues? Let us know** at the bottom of TAB and type your note. If you have a GitHub account, you can also open an issue here.
+Click **Any issues? Let us know** at the bottom of TAB and type your note. It goes to the TAB team through Google Forms, with your TAB and macOS versions and the reply email if you add one. If you have a GitHub account, you can also open an issue here.
 
 ## License
 

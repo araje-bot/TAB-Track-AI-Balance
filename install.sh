@@ -30,6 +30,7 @@ readonly DMG_SHA256="d40a398a87b9bdcf3d1cd44e32b03124b80bf5aab1f038697eb783bedda
 
 TMP=""
 MNT=""
+STAGING=""   # the half-copied app, removed if the install stops early
 
 say() { printf '%s\n' "$*"; }
 fail() { say ""; say "Stopped: $*" >&2; exit 1; }
@@ -48,6 +49,7 @@ detach_dmg() {
 
 cleanup() {
   detach_dmg
+  if [[ -n "$STAGING" && -e "$STAGING" && "$STAGING" == *".$APP_NAME.app.installing."* ]]; then rm -rf "$STAGING"; fi
   if [[ -n "$TMP" && -d "$TMP" && "$TMP" == *tab-install.* ]]; then rm -rf "$TMP"; fi
   return 0
 }
@@ -153,21 +155,30 @@ verify_app() {
   say "App checked: TAB $version, signature and bundle id are right."
 }
 
-# Quits a running TAB by bundle id (never by process name), and only if one is running, so a TAB
-# that isn't running is never launched just to be quit. A copy that ignores the request is
-# stopped by its exact path, since a still-running old TAB would keep the new one from opening.
+# The ids of processes running exactly this executable, wherever pgrep found a match.
+pids_at() {
+  local exe="$1" pid
+  for pid in $(pgrep -f "/${APP_NAME}\.app/Contents/MacOS/${APP_NAME}\$" || true); do
+    [[ "$(ps -o comm= -p "$pid" 2>/dev/null)" == "$exe" ]] && printf '%s\n' "$pid"
+  done
+  return 0
+}
+
+# Quits the TAB being replaced, by bundle id, and only if it is running, so a TAB that isn't
+# running is never launched just to be quit. A copy that ignores the request is stopped by its
+# exact path, so no other app that happens to be called TAB is ever touched.
 quit_running() {
-  local pattern="/${APP_NAME}\.app/Contents/MacOS/${APP_NAME}\$" i pid
-  pgrep -qf "$pattern" || return 0
+  local exe="$1/Contents/MacOS/$APP_NAME" i pid
+  [[ -n "$(pids_at "$exe")" ]] || return 0
   say "Quitting the running TAB…"
   osascript -e "quit app id \"$BUNDLE_ID\"" >/dev/null 2>&1 || true
   for i in 1 2 3 4 5 6; do
-    pgrep -qf "$pattern" || return 0
+    [[ -n "$(pids_at "$exe")" ]] || return 0
     sleep 0.5
   done
-  for pid in $(pgrep -f "$pattern"); do kill -TERM "$pid" 2>/dev/null || true; done
+  for pid in $(pids_at "$exe"); do kill -TERM "$pid" 2>/dev/null || true; done
   for i in 1 2 3 4; do
-    pgrep -qf "$pattern" || return 0
+    [[ -n "$(pids_at "$exe")" ]] || return 0
     sleep 0.5
   done
   return 0
@@ -176,7 +187,8 @@ quit_running() {
 # Copies to a temporary name next to the target, checks the copy, then swaps it in.
 install_app() {
   local src="$1" dir="$2"
-  local target="$dir/$APP_NAME.app" staging="$dir/.$APP_NAME.app.installing.$$"
+  local target="$dir/$APP_NAME.app" staging="$dir/.$APP_NAME.app.installing.$$" moved_old=0
+  STAGING="$staging"
   if [[ -e "$staging" ]]; then rm -rf "$staging"; fi
   ditto "$src" "$staging" || { rm -rf "$staging"; fail "Couldn't copy TAB into $dir."; }
   codesign --verify --strict --deep "$staging" 2>/dev/null \
@@ -187,8 +199,15 @@ install_app() {
       rm -rf "$staging"
       fail "macOS didn't let this Terminal replace the old TAB. Drag TAB from $dir to the Trash and run this again, or allow Terminal under System Settings › Privacy & Security › App Management."
     }
+    moved_old=1
   fi
-  mv "$staging" "$target" || fail "Couldn't put TAB into $dir."
+  if ! mv "$staging" "$target"; then
+    # Put the old TAB back, so a failed install never leaves the person with no TAB at all.
+    if (( moved_old )) && [[ ! -e "$target" ]]; then mv "$TMP/$APP_NAME-old.app" "$target" || true; fi
+    rm -rf "$staging"
+    fail "Couldn't put TAB into $dir. Your old TAB is still there."
+  fi
+  STAGING=""
   say "Installed $target"
 }
 
@@ -198,11 +217,13 @@ retire_old() {
   local dir="$1" app="$1/$OLD_NAME.app" dest i
   [[ -d "$app" && ! -L "$app" ]] || return 0
   [[ "$(bundle_id "$app" || true)" == "$OLD_BUNDLE_ID" ]] || return 0
-  osascript -e "quit app id \"$OLD_BUNDLE_ID\"" >/dev/null 2>&1 || true
-  for i in 1 2 3 4 5 6; do
-    pgrep -qf "/${OLD_NAME}\.app/Contents/MacOS/${OLD_NAME}\$" || break
-    sleep 0.5
-  done
+  if pgrep -qf "/${OLD_NAME}\.app/Contents/MacOS/${OLD_NAME}\$"; then
+    osascript -e "quit app id \"$OLD_BUNDLE_ID\"" >/dev/null 2>&1 || true
+    for i in 1 2 3 4 5 6 7 8 9 10; do
+      pgrep -qf "/${OLD_NAME}\.app/Contents/MacOS/${OLD_NAME}\$" || break
+      sleep 0.5
+    done
+  fi
   dest="$HOME/.Trash/$OLD_NAME.app"
   if [[ -e "$dest" ]]; then dest="$HOME/.Trash/$OLD_NAME $(date +%Y-%m-%d-%H%M%S).app"; fi
   if mv "$app" "$dest" 2>/dev/null; then
@@ -248,7 +269,7 @@ main() {
   download
   mount_dmg
   verify_app "$MNT/$APP_NAME.app"
-  quit_running
+  quit_running "$target"
   install_app "$MNT/$APP_NAME.app" "$dir"
   retire_old "$dir"
   # Let go of the disk image before opening, so macOS only knows the installed copy.

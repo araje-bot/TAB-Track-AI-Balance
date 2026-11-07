@@ -348,8 +348,11 @@ enum HTTP {
         // For errors, also note the service's short error code, like "invalid_grant". Free-text
         // messages are never logged: they can hold emails, names or ids (security review M5).
         if !(200..<300).contains(code), let o = obj {
+            // Only the reply's top level, or its "error" object, never a value buried deeper.
+            let top = o as? [String: Any] ?? [:]
+            let inner = top["error"] as? [String: Any] ?? [:]
             let reasons = ["code", "error", "type"].compactMap { k -> String? in
-                guard let v = J.find(o, keys: [k]) as? String,
+                guard let v = (top[k] as? String) ?? (inner[k] as? String),
                       v.range(of: #"^[A-Za-z0-9_.\-]{1,64}$"#, options: .regularExpression) != nil,
                       v.range(of: #"[0-9]{6,}"#, options: .regularExpression) == nil else { return nil }
                 return "\(k)=\(v)"

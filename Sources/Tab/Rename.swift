@@ -34,8 +34,11 @@ enum Rename {
         d.set(true, forKey: movedKey)
         guard mine["connected"] == nil, mine["onboardingVersion"] == nil,
               let values = d.persistentDomain(forName: old), !values.isEmpty else { return 0 }
-        for (key, value) in values { d.set(value, forKey: key.replacingOccurrences(of: " TUM", with: " TAB")) }
-        return values.count
+        // Launch state belongs to the old app: a crash flag would start TAB in safe mode.
+        let skip: Set<String> = ["launchInProgress", "onboardingBuild"]
+        let moving = values.filter { !skip.contains($0.key) }
+        for (key, value) in moving { d.set(value, forKey: key.replacingOccurrences(of: " TUM", with: " TAB")) }
+        return moving.count
     }
 
     /// Asks a running TUM to quit, so only one icon shows. TUM Dev only quits an old TUM Dev,

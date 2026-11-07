@@ -162,7 +162,12 @@ extension StatusItemController {
         guard a.runModal() == .alertFirstButtonReturn else { return }
 
         let domain = Bundle.main.bundleIdentifier ?? ProcessInfo.processInfo.processName
+        // Keep the two rename markers, so a fresh start doesn't bring TUM Dev's settings back
+        // or reuse an old TUM sign-in that was already moved or removed.
+        let retired = UserDefaults.standard.stringArray(forKey: Keychain.retiredKey)
         UserDefaults.standard.removePersistentDomain(forName: domain)
+        UserDefaults.standard.set(true, forKey: Rename.movedKey)
+        if let r = retired { UserDefaults.standard.set(r, forKey: Keychain.retiredKey) }
         UserDefaults.standard.synchronize()
         Diagnostics.logNow("developer: start fresh")
         // Reopen after this copy has quit, so the single-copy check doesn't stop it.

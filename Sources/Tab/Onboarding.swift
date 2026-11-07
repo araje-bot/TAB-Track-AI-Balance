@@ -146,7 +146,7 @@ private struct WelcomeStep: View {
                 benefit("bell.badge.fill", "Quiet until it matters",
                         "Turns yellow, then red, when an app runs low")
                 benefit("lock.shield.fill", "Your info stays secure",
-                        "No TAB server. Sign-ins go only to their app")
+                        "No TAB server. Sign-ins go only to their maker")
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)

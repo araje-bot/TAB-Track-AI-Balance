@@ -35,7 +35,7 @@ struct SettingsView: View {
                         .font(.largeTitle).frame(width: 48)
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Your info stays secure").font(.headline)
-                        Text("TAB has no server. Each sign-in goes only to its own app to check usage. Your prompts and work are never saved or sent.")
+                        Text("TAB has no server. Each sign-in goes only to the company that made its app, to check usage. Your prompts and work are never saved or sent.")
                             .font(.subheadline).foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
                     }

@@ -179,32 +179,70 @@ enum Keychain {
         service.hasPrefix("TAB ") ? "TUM " + service.dropFirst(4) : nil
     }
 
+    /// Old TUM items that must never be used again: already moved, or removed by the person.
+    /// Kept in settings, so an old item macOS wouldn't let TAB delete can never come back.
+    static let retiredKey = "retiredOldSignIns"
+    private static let retiredLock = NSLock()
+    static var retiredStore: UserDefaults = .standard
+
+    static func isRetired(_ old: String) -> Bool {
+        retiredLock.lock(); defer { retiredLock.unlock() }
+        return retiredStore.stringArray(forKey: retiredKey)?.contains(old) ?? false
+    }
+
+    private static func retire(_ old: String) {
+        retiredLock.lock(); defer { retiredLock.unlock() }
+        var list = retiredStore.stringArray(forKey: retiredKey) ?? []
+        if !list.contains(old) { list.append(old); retiredStore.set(list, forKey: retiredKey) }
+    }
+
+    /// The old item's name, if one may still be used.
+    private static func usableOld(_ service: String) -> String? {
+        guard let old = oldName(service), !isRetired(old) else { return nil }
+        return old
+    }
+
     /// Whether one of TAB's own items exists, under its new or old name. Never prompts.
     static func ownExists(service: String) -> Bool {
-        exists(service: service) || (oldName(service).map { exists(service: $0) } ?? false)
+        exists(service: service) || (usableOld(service).map { exists(service: $0) } ?? false)
     }
 
     /// Reads one of TAB's own items. When only the old TUM item is there, it is copied to the
-    /// new name and the old one removed, so nothing needs reconnecting. Same rules as `read`:
-    /// silent unless the person just clicked, and nothing before onboarding is done.
+    /// new name and the old one retired and removed, so nothing needs reconnecting. Same rules
+    /// as `read`: silent unless the person just clicked, and nothing before onboarding is done.
+    /// A Remove that happens during the move wins: the new copy is deleted again.
     static func readOwn(service: String, account: String, interactive: Bool) -> (status: OSStatus, data: Data?) {
         let r = read(service: service, account: account, interactive: interactive)
-        guard r.status == errSecItemNotFound, let old = oldName(service), exists(service: old) else { return r }
+        guard r.status == errSecItemNotFound, let old = usableOld(service), exists(service: old) else { return r }
         let o = read(service: old, account: account, interactive: interactive)
-        guard o.status == errSecSuccess, let data = o.data else { return o }
+        guard o.status == errSecSuccess, let data = o.data else {
+            // Cursor and Grok Bot share one item. If the other reader just moved it, use that.
+            if o.status == errSecItemNotFound { return read(service: service, account: account, interactive: interactive) }
+            return o
+        }
+        guard !isRetired(old) else { return (errSecItemNotFound, nil) }   // removed while macOS asked
         let add: [String: Any] = [kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: service,
                                   kSecAttrAccount as String: account, kSecAttrLabel as String: service,
                                   kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly,
                                   kSecValueData as String: data]
         let added = SecItemAdd(add as CFDictionary, nil)
-        if added == errSecSuccess { quietDelete(service: old) }
-        Diagnostics.log(added == errSecSuccess ? "keychain: moved a sign-in to its TAB name" : "keychain: move failed (\(added))")
+        if isRetired(old) {
+            // Removed between the check and the add: undo the copy.
+            if added == errSecSuccess { _ = delete(service: service) }
+            return (errSecItemNotFound, nil)
+        }
+        if added == errSecSuccess || added == errSecDuplicateItem {
+            retire(old)
+            quietDelete(service: old)
+        }
+        Diagnostics.log(added == errSecSuccess ? "keychain: moved a sign-in to its TAB name" : "keychain: move status \(added)")
         return (errSecSuccess, data)
     }
 
-    /// Deletes one of TAB's own items under both names.
+    /// Deletes one of TAB's own items under both names. The old name is retired first, so even
+    /// if macOS keeps the old item, TAB never uses it again.
     static func deleteOwn(service: String) -> OSStatus {
-        if let old = oldName(service) { quietDelete(service: old) }
+        if let old = oldName(service) { retire(old); quietDelete(service: old) }
         return delete(service: service)
     }
 

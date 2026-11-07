@@ -166,7 +166,7 @@ struct FeedbackForm: View {
                     Text("That email doesn't look right. Leave it empty if you don't need a reply.")
                         .foregroundStyle(Palette.amberText)
                 } else if direct {
-                    Text("Sent to the TAB team through Google Forms. No account needed. Leave out anything private.")
+                    Text("Sent to the TAB team through Google Forms, with your TAB and macOS versions. Leave out anything private.")
                         .foregroundStyle(.secondary)
                 } else {
                     Text("This opens a public issue on TAB's GitHub page, so you can check it before sending. Leave out anything private.")

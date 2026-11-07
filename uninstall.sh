@@ -12,6 +12,7 @@ set -euo pipefail
 
 readonly APP_NAME="TAB"
 readonly BUNDLE_ID="edu.umd.inst474.tab"
+readonly OLD_BUNDLE_ID="edu.umd.inst474.tum"   # TAB's name before the rename
 
 say() { printf '%s\n' "$*"; }
 fail() { say ""; say "Stopped: $*" >&2; exit 1; }
@@ -84,6 +85,8 @@ main() {
 
   if (( all )); then
     defaults delete "$BUNDLE_ID" >/dev/null 2>&1 || true
+    # TAB's settings from before the rename (TUM), so a later install starts fresh.
+    defaults delete "$OLD_BUNDLE_ID" >/dev/null 2>&1 || true
     if [[ -d "$HOME/Library/Logs/$APP_NAME" ]]; then rm -rf "$HOME/Library/Logs/$APP_NAME"; fi
     say "Deleted TAB's settings and diagnostics log."
   else
@@ -94,10 +97,11 @@ main() {
   fi
   say ""
   say "If \"Open at login\" was on, remove TAB under System Settings › General › Login Items."
-  say "If you connected Cursor, Grok Bot or GitHub Copilot through TAB's own sign-in, two items may"
-  say "remain in your Keychain: \"TAB Cursor sign-in\" and \"TAB GitHub sign-in\". Delete them in"
-  say "Keychain Access if you like (before the rename they were called \"TUM Cursor sign-in\" and"
-  say "\"TUM GitHub sign-in\"), and revoke the access at cursor.com or github.com/settings/applications."
+  say "If you connected Cursor, Grok Bot, GitHub Copilot or Gemini through TAB's own sign-in, up to"
+  say "three items may remain in your Keychain: \"TAB Cursor sign-in\", \"TAB GitHub sign-in\" and"
+  say "\"TAB Gemini sign-in\" (before the rename they started with \"TUM\"). Delete them in Keychain"
+  say "Access if you like. You can also revoke the access at cursor.com or"
+  say "github.com/settings/applications, and sign out of Google at myaccount.google.com."
   say "TAB never changed any other app's sign-in, so there is nothing else to undo."
 }
 

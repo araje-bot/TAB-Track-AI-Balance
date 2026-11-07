@@ -88,8 +88,8 @@ done
 if [[ -f ".build/universal/$APP_NAME-x86_64" ]] && lipo -create ".build/universal/$APP_NAME-arm64" ".build/universal/$APP_NAME-x86_64" -output "$BIN" 2>/dev/null; then
   :
 else
-  echo "   (Intel build unavailable, continuing with an Apple silicon only app)"
-  cp ".build/universal/$APP_NAME-arm64" "$BIN"
+  echo "Couldn't join the Apple silicon and Intel builds. A release must run on both, so no DMG was made."
+  exit 1
 fi
 [[ -f "$BIN" ]] || { echo "Build output not found at $BIN"; exit 1; }
 lipo -info "$BIN"

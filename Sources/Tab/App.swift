@@ -45,15 +45,17 @@ public enum TabMain {
         // doesn't know its bundle id). The real TAB from the DMG is never touched (AK).
         let me = ProcessInfo.processInfo.processIdentifier
         NSWorkspace.shared.runningApplications
-            .filter { $0.processIdentifier != me && $0.executableURL?.lastPathComponent.lowercased() == "tab"
-                      && $0.bundleIdentifier != "edu.umd.inst474.tab" }
+            .filter { app in app.processIdentifier != me && app.executableURL?.lastPathComponent.lowercased() == "tab"
+                      && (app.bundleIdentifier == "edu.umd.inst474.tab.dev"
+                          || (app.bundleIdentifier == nil && ["/.build/", "/DerivedData/"].contains { p in
+                              app.executableURL?.path.contains(p) == true })) }
             .forEach { kill($0.processIdentifier, SIGKILL) }
         #endif
 
-        // Record crashes so they show up in Copy diagnostics. The reason is cut short, since it
-        // can hold names or paths (security review).
+        // Record crashes so they show up in Copy diagnostics. Only the exception's name: its
+        // reason can quote the object it failed on, which may hold a token or an email.
         NSSetUncaughtExceptionHandler { e in
-            Diagnostics.logNow("crash: \(e.name.rawValue) \((e.reason ?? "").prefix(200))")
+            Diagnostics.logNow("crash: \(e.name.rawValue)")
         }
         // TAB was called TUM: bring its settings over once and quit an old TUM still running.
         Rename.run()
