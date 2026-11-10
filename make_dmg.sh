@@ -1,13 +1,13 @@
 #!/bin/bash
 # Builds a universal TAB.app (Apple silicon + Intel) and packages it as a drag-to-install DMG.
 #
-#   ./make_dmg.sh                      -> build/TAB-0.2.0.dmg (signed only on this Mac)
+#   ./make_dmg.sh                      -> build/TAB-0.2.1.dmg (signed only on this Mac)
 #
 # For a DMG that opens on any Mac without warnings (needs a paid Apple Developer account):
 #   DEVELOPER_ID="Developer ID Application: Your Name (TEAMID)" NOTARY_PROFILE="tab-notary" ./make_dmg.sh
 #   (create the profile once with: xcrun notarytool store-credentials tab-notary)
 #   ./make_dmg.sh --allow-dirty        build with uncommitted changes (local testing only)
-#   ./make_dmg.sh --update-installer   write the new DMG's SHA-256 into install.sh
+#   ./make_dmg.sh --update-installer   put the zip in dist/ and write its SHA-256 into install.sh
 set -euo pipefail
 cd "$(dirname "$0")"
 # Everything this script prints also goes to build-log.txt, with home folder paths shortened to ~.
@@ -15,7 +15,7 @@ exec > >(sed -l "s#$HOME#~#g" | tee build-log.txt) 2>&1
 echo "TAB build $(date)  macOS $(sw_vers -productVersion)  $(uname -m)"
 echo "Developer tools: $(xcode-select -p 2>/dev/null || echo 'not installed')"
 
-VERSION="0.2.0"
+VERSION="0.2.1"
 APP_NAME="TAB"
 BUNDLE_ID="edu.umd.inst474.tab"
 
@@ -187,14 +187,24 @@ echo ""
 echo "Done: $(pwd)/$DMG"
 echo "SHA-256: $SHA"
 echo "Kept a copy: $(pwd)/$KEEP"
+# The terminal installer downloads this zip from the repository at the version's tag (dist/).
+# Only the current version's zip is kept there; older ones stay in git history and their tags.
+ZIP="build/$APP_NAME-$VERSION.zip"
+ditto -c -k --norsrc --noextattr --keepParent "build/$APP_NAME.app" "$ZIP"
+ZIP_SHA=$(shasum -a 256 "$ZIP" | cut -d' ' -f1)
+cp "$ZIP" "releases/$APP_NAME-$VERSION-$(date +%Y-%m-%d-%H%M).zip"
+echo "Zip for the installer: $(pwd)/$ZIP"
+echo "Zip SHA-256: $ZIP_SHA"
 if [[ $UPDATE_INSTALLER == 1 ]]; then
-  sed -i '' "s/^readonly DMG_SHA256=.*/readonly DMG_SHA256=\"$SHA\"/" install.sh
-  echo "Wrote this SHA-256 into install.sh. Commit it, tag v$VERSION, and attach exactly this DMG"
-  echo "($KEEP) to the GitHub release as $APP_NAME-$VERSION.dmg. Every build gives a new fingerprint."
+  mkdir -p dist
+  find dist -name "$APP_NAME-*.zip" -delete
+  cp "$ZIP" "dist/"
+  sed -i '' "s/^readonly ZIP_SHA256=.*/readonly ZIP_SHA256=\"$ZIP_SHA\"/" install.sh
+  echo "Put dist/$APP_NAME-$VERSION.zip in place and wrote its SHA-256 into install.sh."
+  echo "Commit both, tag v$VERSION and push the tag. The install command then works as is."
 else
   echo "For a release, run   ./make_dmg.sh --update-installer   so install.sh checks for this exact file."
 fi
 if [[ -z "${DEVELOPER_ID:-}" ]]; then
-  echo "Note: this DMG is signed only on this Mac. On other Macs, right-click TAB in Applications and choose Open the first time."
+  echo "Note: this build is signed only on this Mac. Share it through the terminal installer, not the DMG."
 fi
-open -R "$DMG" || true

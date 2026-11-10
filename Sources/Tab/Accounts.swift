@@ -272,8 +272,10 @@ extension Store {
 
 /// TAB's version and the newest release on GitHub.
 enum Updates {
-    static let latestURL = URL(string: "https://api.github.com/repos/araje-bot/TAB-Track-AI-Balance/releases/latest")!
-    static let releasesPage = URL(string: "https://github.com/araje-bot/TAB-Track-AI-Balance/releases/latest")!
+    /// Versions are git tags (TAB installs from Terminal, with no release page), so the newest tag wins.
+    static let tagsURL = URL(string: "https://api.github.com/repos/araje-bot/TAB-Track-AI-Balance/tags?per_page=100")!
+    /// The README's install line, which also updates TAB.
+    static let installPage = URL(string: "https://github.com/araje-bot/TAB-Track-AI-Balance#install")!
 
     /// This copy's version, from its Info.plist.
     static var current: String {
@@ -297,19 +299,23 @@ enum Updates {
         return false
     }
 
-    /// The newest release's tag, or nil if GitHub can't be reached. Sends nothing about the person.
+    /// The newest version tag, or nil if GitHub can't be reached. Sends nothing about the person.
     static func latestTag() async -> String? {
-        var r = URLRequest(url: latestURL)
+        var r = URLRequest(url: tagsURL)
         r.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
         guard let (data, resp) = try? await HTTP.raw(r, provider: "updates", host: "api.github.com"), resp.statusCode == 200,
-              let o = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let tag = o["tag_name"] as? String, tag.count <= 32,
-              tag.range(of: #"^v?[0-9]+(\.[0-9]+){0,3}$"#, options: .regularExpression) != nil else { return nil }
-        return tag
+              let list = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else { return nil }
+        return newest(list.compactMap { $0["name"] as? String })
+    }
+
+    /// The highest version among tag names, ignoring anything that isn't a plain version.
+    static func newest(_ tags: [String]) -> String? {
+        tags.filter { $0.count <= 32 && $0.range(of: #"^v?[0-9]+(\.[0-9]+){0,3}$"#, options: .regularExpression) != nil }
+            .reduce(nil) { best, t in best.map { isNewer(t, than: $0) ? t : $0 } ?? t }
     }
 }
 
-/// "Check for updates" in Settings (v4). Asks GitHub for the newest release only when clicked.
+/// "Check for updates" in Settings (v4). Asks GitHub for the newest version only when clicked.
 @MainActor
 final class UpdateChecker: ObservableObject {
     static let shared = UpdateChecker()
@@ -333,7 +339,7 @@ final class UpdateChecker: ObservableObject {
 
     func check() {
         guard state != .checking else { return }
-        if case .available = state { NSWorkspace.shared.open(Updates.releasesPage); return }
+        if case .available = state { NSWorkspace.shared.open(Updates.installPage); return }
         state = .checking
         Task {
             let started = Date()

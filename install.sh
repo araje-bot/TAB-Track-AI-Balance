@@ -1,13 +1,16 @@
 #!/bin/bash
 # Installs TAB (Track AI Balance) on a Mac.
 #
-#   curl -fsSL https://raw.githubusercontent.com/araje-bot/TAB-Track-AI-Balance/v0.2.0/install.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/araje-bot/TAB-Track-AI-Balance/v0.2.1/install.sh | bash
 #
 # What it does, in order:
-#   1. Downloads one exact release (TAB-0.2.0.dmg) from github.com over HTTPS.
+#   1. Downloads one exact build (dist/TAB-0.2.1.zip at the v0.2.1 tag) from GitHub over HTTPS.
 #   2. Checks the file against the SHA-256 fingerprint written below. Anything else is deleted.
-#   3. Opens the disk image read-only and checks the app's signature and bundle id.
+#   3. Unpacks it in a private folder and checks the app's signature and bundle id.
 #   4. Copies TAB.app into /Applications (or ~/Applications), replacing an older TAB, and opens it.
+#
+# Installing from Terminal is what lets TAB open without Apple's developer signature: curl never
+# marks the file as downloaded from the internet, so macOS doesn't block the first launch.
 #
 # It never asks for your password, never uses sudo, changes no system settings, and downloads
 # nothing else. Everything happens in a private temporary folder that is removed at the end.
@@ -16,39 +19,27 @@
 #           --no-open   don't open TAB at the end
 set -euo pipefail
 
-readonly VERSION="0.2.0"
+readonly VERSION="0.2.1"
 readonly REPO="araje-bot/TAB-Track-AI-Balance"
 readonly APP_NAME="TAB"
 readonly BUNDLE_ID="edu.umd.inst474.tab"
 # TAB was called TUM in 0.1.0. An old TUM.app is quit and moved to the Trash.
 readonly OLD_NAME="TUM"
 readonly OLD_BUNDLE_ID="edu.umd.inst474.tum"
-readonly DMG_NAME="${APP_NAME}-${VERSION}.dmg"
-readonly DMG_URL="https://github.com/${REPO}/releases/download/v${VERSION}/${DMG_NAME}"
-# The SHA-256 of TAB-0.2.0.dmg. make_dmg.sh --update-installer writes it here for each release.
-readonly DMG_SHA256="d5c19d380a6165b4b71687fd73fe9f2cb4cabee87635dd06ba2fc406137e5d73"
+readonly ZIP_NAME="${APP_NAME}-${VERSION}.zip"
+# The build is kept in the repository at the version's tag, so no separate release page is needed.
+readonly ZIP_URL="https://raw.githubusercontent.com/${REPO}/v${VERSION}/dist/${ZIP_NAME}"
+# The SHA-256 of TAB-0.2.1.zip. make_dmg.sh --update-installer writes it here for each release.
+readonly ZIP_SHA256="d5c19d380a6165b4b71687fd73fe9f2cb4cabee87635dd06ba2fc406137e5d73"
 
 TMP=""
-MNT=""
+UNPACKED=""
 STAGING=""   # the half-copied app, removed if the install stops early
 
 say() { printf '%s\n' "$*"; }
 fail() { say ""; say "Stopped: $*" >&2; exit 1; }
 
-# Lets go of the disk image. Finder or Spotlight can hold it for a moment, so it tries a few times.
-detach_dmg() {
-  [[ -n "$MNT" ]] || return 0
-  local i
-  for i in 1 2 3 4 5; do
-    if hdiutil detach "$MNT" -quiet 2>/dev/null; then MNT=""; return 0; fi
-    sleep 1
-  done
-  hdiutil detach "$MNT" -force -quiet 2>/dev/null || true
-  MNT=""
-}
-
 cleanup() {
-  detach_dmg
   if [[ -n "$STAGING" && -e "$STAGING" && "$STAGING" == *".$APP_NAME.app.installing."* ]]; then rm -rf "$STAGING"; fi
   if [[ -n "$TMP" && -d "$TMP" && "$TMP" == *tab-install.* ]]; then rm -rf "$TMP"; fi
   return 0
@@ -83,7 +74,7 @@ check_macos() {
 
 check_tools() {
   local t
-  for t in curl shasum hdiutil codesign ditto osascript xattr /usr/libexec/PlistBuddy; do
+  for t in curl shasum codesign ditto osascript xattr /usr/libexec/PlistBuddy; do
     command -v "$t" >/dev/null 2>&1 || fail "A standard macOS tool is missing ($t)."
   done
 }
@@ -113,14 +104,14 @@ check_target() {
 }
 
 download() {
-  local file="$TMP/$DMG_NAME" sum
-  say "Downloading $DMG_NAME from github.com…"
-  curl --proto '=https' --tlsv1.2 -fsSL --retry 3 --retry-delay 2 --max-filesize 20000000 -o "$file" "$DMG_URL" \
-    || fail "Couldn't download $DMG_URL. Check your internet connection, then try again."
+  local file="$TMP/$ZIP_NAME" sum
+  say "Downloading $ZIP_NAME from GitHub…"
+  curl --proto '=https' --tlsv1.2 -fsSL --retry 3 --retry-delay 2 --max-filesize 20000000 -o "$file" "$ZIP_URL" \
+    || fail "Couldn't download $ZIP_URL. Check your internet connection, then try again."
   sum="$(shasum -a 256 "$file" | awk '{print $1}')"
-  if [[ "$sum" != "$DMG_SHA256" ]]; then
+  if [[ "$sum" != "$ZIP_SHA256" ]]; then
     if [[ -f "$file" ]]; then rm -f "$file"; fi
-    fail "The download doesn't match the expected file, so it was deleted and nothing was installed. (expected $DMG_SHA256, got $sum)"
+    fail "The download doesn't match the expected file, so it was deleted and nothing was installed. (expected $ZIP_SHA256, got $sum)"
   fi
   # curl never adds the "downloaded from the internet" mark. If it is there anyway, this file
   # didn't come the way it should have, and nothing is ever stripped to make it run.
@@ -130,16 +121,16 @@ download() {
   say "Download checked: fingerprint matches."
 }
 
-mount_dmg() {
-  MNT="$TMP/mnt"
-  mkdir -p "$MNT"
-  hdiutil attach -nobrowse -readonly -noautoopen -mountpoint "$MNT" "$TMP/$DMG_NAME" >/dev/null </dev/null \
-    || fail "Couldn't open the disk image."
+unpack() {
+  UNPACKED="$TMP/app"
+  mkdir -p "$UNPACKED"
+  ditto -x -k "$TMP/$ZIP_NAME" "$UNPACKED" </dev/null || fail "Couldn't unpack the download."
+  [[ -d "$UNPACKED/$APP_NAME.app" && ! -L "$UNPACKED/$APP_NAME.app" ]] || fail "The download doesn't contain $APP_NAME.app."
 }
 
 verify_app() {
   local app="$1" id version info signed_as flags
-  [[ -d "$app" ]] || fail "The disk image doesn't contain $APP_NAME.app."
+  [[ -d "$app" ]] || fail "The download doesn't contain $APP_NAME.app."
   codesign --verify --strict --deep "$app" 2>/dev/null \
     || fail "The app's signature doesn't check out, so nothing was installed."
   id="$(bundle_id "$app" || true)"
@@ -245,7 +236,7 @@ main() {
   done
   check_macos
   check_tools
-  [[ "$DMG_SHA256" =~ ^[0-9a-f]{64}$ ]] || fail "This copy of the installer has no fingerprint. Get it again from github.com/$REPO."
+  [[ "$ZIP_SHA256" =~ ^[0-9a-f]{64}$ ]] || fail "This copy of the installer has no fingerprint. Get it again from github.com/$REPO."
 
   local dir target
   dir="$(pick_target_dir)"
@@ -253,7 +244,7 @@ main() {
 
   say "This installs TAB $VERSION, a menu bar app that shows how much AI usage you have left."
   say "It will:"
-  say "  1. Download $DMG_NAME from github.com and check it against a known fingerprint."
+  say "  1. Download $ZIP_NAME from GitHub and check it against a known fingerprint."
   say "  2. Check the app's signature."
   say "  3. Put TAB in $dir, replacing any older TAB there (or TUM, its old name), and open it."
   say "It never asks for your password and changes nothing else on your Mac."
@@ -267,13 +258,11 @@ main() {
   chmod 700 "$TMP"
   trap cleanup EXIT
   download
-  mount_dmg
-  verify_app "$MNT/$APP_NAME.app"
+  unpack
+  verify_app "$UNPACKED/$APP_NAME.app"
   quit_running "$target"
-  install_app "$MNT/$APP_NAME.app" "$dir"
+  install_app "$UNPACKED/$APP_NAME.app" "$dir"
   retire_old "$dir"
-  # Let go of the disk image before opening, so macOS only knows the installed copy.
-  detach_dmg
 
   if (( open_after )); then
     if open "$target" 2>/dev/null; then

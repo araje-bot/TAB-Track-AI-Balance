@@ -178,7 +178,7 @@ struct SettingsView: View {
     }
 
     private var updateTitle: String {
-        if case .available = updates.state { return "Download" }
+        if case .available = updates.state { return "How to update" }
         return "Check for updates"
     }
 

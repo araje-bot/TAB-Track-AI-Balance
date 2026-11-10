@@ -202,7 +202,8 @@ enum SelfTest {
               && !Diagnostics.clean("x maya@brightpixel.co").contains("@"))
         check("Update check compares versions",
               Updates.isNewer("v0.2.0", than: "0.1.1") && !Updates.isNewer("v0.1.1", than: "0.1.1")
-              && Updates.isNewer("0.10.0", than: "0.9.9") && !Updates.isNewer("v0.1.0", than: "0.2.0"))
+              && Updates.isNewer("0.10.0", than: "0.9.9") && !Updates.isNewer("v0.1.0", than: "0.2.0")
+              && Updates.newest(["v0.1.0", "v0.2.1", "nightly", "v0.10.0", "v0.2.0"]) == "v0.10.0" && Updates.newest(["test"]) == nil)
 
         // Logo marks from app icons.
         check("Logo mark found on a plain icon", GlyphMaker.whiteGlyph(from: testIcon(withMark: true)) != nil)

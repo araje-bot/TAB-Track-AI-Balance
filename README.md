@@ -21,10 +21,14 @@ When several apps need you at once, red comes first, then yellow, then green. Ap
 Open Terminal (press ⌘ Space, type Terminal, press Return), paste this line, press Return, then type `y`:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/araje-bot/TAB-Track-AI-Balance/v0.2.0/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/araje-bot/TAB-Track-AI-Balance/v0.2.1/install.sh | bash
 ```
 
 TAB opens with a short welcome and shows the AI apps it found. It needs macOS 13 or later, on Apple silicon or Intel.
+
+Please install TAB this way, not from a downloaded file. TAB isn't signed by Apple yet, so macOS blocks it when it comes through a browser. The Terminal line installs it without that block.
+
+To update, run the same line from this page again. Settings and connected apps stay.
 
 TAB used to be called TUM. If you had TUM, the installer replaces it, and TAB brings over your settings and connected apps.
 
@@ -53,7 +57,7 @@ TAB used to be called TUM. If you had TUM, the installer replaces it, and TAB br
 ## Uninstall
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/araje-bot/TAB-Track-AI-Balance/v0.2.0/uninstall.sh | bash
+curl -fsSL https://raw.githubusercontent.com/araje-bot/TAB-Track-AI-Balance/v0.2.1/uninstall.sh | bash
 ```
 
 Or drag TAB from Applications to the Trash.
@@ -84,7 +88,7 @@ After a TAB update, macOS may ask once more, since it ties Always Allow to the e
 
 - TAB never asks for your password. When you connect Gemini, you type it on Google's own sign-in page, shown in a small TAB window. TAB doesn't read or save your password. TAB does not need keyboard, screen or accessibility permissions.
 - macOS may ask for your password once when you connect Claude or Zed. See [why](#why-macos-asks-for-your-password).
-- The installer downloads one exact release and checks it against a fingerprint written into the script. A different file is deleted, not installed.
+- The installer downloads one exact build from this repository and checks it against a fingerprint written into the script. A different file is deleted, not installed.
 - All of TAB's code is in this repository, so anyone can read exactly what it does.
 
 ## Feedback
