@@ -55,15 +55,17 @@ final class StatusItemController: NSObject {
     private var introPopover: NSPopover?
 
     private let openSettings: () -> Void
+    private let openConnect: (AIApp, Bool) -> Void
     private let showWelcome: () -> Void
     #if DEBUG
     /// Developer menu actions that live in AppDelegate (see Developer.swift).
     var dev: DevHooks?
     #endif
 
-    init(store: Store, openSettings: @escaping () -> Void, openAddMore: @escaping () -> Void, showWelcome: @escaping () -> Void) {
+    init(store: Store, openSettings: @escaping () -> Void, openConnect: @escaping (AIApp, Bool) -> Void, showWelcome: @escaping () -> Void) {
         self.store = store
         self.openSettings = openSettings
+        self.openConnect = openConnect
         self.showWelcome = showWelcome
         self.item = Self.makeItem()
         super.init()
@@ -80,7 +82,7 @@ final class StatusItemController: NSObject {
         let hosting = NSHostingController(rootView: PopoverView(
             store: store,
             openSettings: { [weak self] in self?.popover.performClose(nil); openSettings() },
-            openAddMore: { [weak self] in self?.popover.performClose(nil); openAddMore() }))
+            openConnect: { [weak self] app, more in self?.popover.performClose(nil); openConnect(app, more) }))
         hosting.sizingOptions = .preferredContentSize   // the popover follows the content's height
         popover.contentViewController = hosting
         layout()
@@ -271,7 +273,7 @@ final class StatusItemController: NSObject {
         if floating == nil {
             floating = FloatingPanel(root: PopoverView(store: store,
                                                        openSettings: { [weak self] in self?.floating?.close(); self?.openSettings() },
-                                                       openAddMore: { [weak self] in self?.floating?.close(); self?.openSettings() })
+                                                       openConnect: { [weak self] app, more in self?.floating?.close(); self?.openConnect(app, more) })
                 .glassPanel())
         }
         floating?.showTopRight()

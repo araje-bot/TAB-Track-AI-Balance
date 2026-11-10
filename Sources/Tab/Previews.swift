@@ -70,25 +70,25 @@ private extension View {
 // MARK: Menu bar popover
 
 #Preview("Popover all good") {
-    PopoverView(store: sampleStore(["claude": 62, "codex": 88, "cursor": 70]), openSettings: {}, openAddMore: {})
+    PopoverView(store: sampleStore(["claude": 62, "codex": 88, "cursor": 70]), openSettings: {}, openConnect: { _, _ in })
         .glassPanel()
         .previewDesk()
 }
 
 #Preview("Popover yellow") {
-    PopoverView(store: sampleStore(["claude": 24, "codex": 88]), openSettings: {}, openAddMore: {})
+    PopoverView(store: sampleStore(["claude": 24, "codex": 88]), openSettings: {}, openConnect: { _, _ in })
         .glassPanel()
         .previewDesk()
 }
 
 #Preview("Popover red") {
-    PopoverView(store: sampleStore(["claude": 62, "codex": 8]), openSettings: {}, openAddMore: {})
+    PopoverView(store: sampleStore(["claude": 62, "codex": 8]), openSettings: {}, openConnect: { _, _ in })
         .glassPanel()
         .previewDesk()
 }
 
 #Preview("Popover empty") {
-    PopoverView(store: sampleStore([:]), openSettings: {}, openAddMore: {})
+    PopoverView(store: sampleStore([:]), openSettings: {}, openConnect: { _, _ in })
         .glassPanel()
         .previewDesk()
 }

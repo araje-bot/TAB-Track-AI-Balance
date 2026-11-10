@@ -2,18 +2,18 @@
 
 TAB sits in your Mac's menu bar and keeps tabs on how much of your AI plan you have left. When an app runs low, its icon turns yellow, then red. When a limit is about to reset and you've barely used it, the icon turns green, so you can use it before it goes to waste.
 
-TAB shows real numbers for Claude, Codex, Cursor, Gemini, GitHub Copilot, Zed and Grok Bot, and for the Grok command-line tool. Other AI apps it finds on your Mac wait under Coming soon until TAB can show their numbers.
+TAB shows real numbers for Claude, Codex, Cursor, Gemini, GitHub Copilot, Zed and Grok Bot, and for the Grok command-line tool. If you have more than one Claude or Codex account, TAB watches each one and uses the top one first.
 
 ![The menu bar icon in its four states. All good, getting low (yellow), almost out (red), and not utilized enough (green).](docs/images/pills.png)
 
-When everything is fine, you see a small round icon. Yellow means an app is getting low. Red means it is almost out. Green means not utilized enough. An app you've barely used has plenty left and resets soon, so use it before that goes to waste.
+When everything is fine, you see a small round icon. Yellow means an app is getting low (40% left or less, unless you change it). Red means it is almost out (25% or less). Green means not utilized enough. An app you've barely used has plenty left and resets soon, so use it before that goes to waste.
 
 When several apps need you at once, red comes first, then yellow, then green. Apps of the same color take turns, about a minute each, so you see every one. Hover over the icon to see them all at once.
 
 ## What TAB supports today
 
-- **Native Mac apps only, for now.** TAB works with AI apps installed on your Mac, like the Claude, Codex and Cursor desktop apps and their command-line tools.
-- **Web apps are coming.** AI tools you mostly use in a browser, like ElevenLabs, Higgsfield and Suno, are planned. TAB lists them under Coming soon.
+- **Mac apps.** TAB works with AI apps installed on your Mac, like the Claude, Codex and Cursor desktop apps and their command-line tools.
+- **Web apps are next.** AI tools you mostly use in a browser, like ChatGPT, Perplexity, Higgsfield and ElevenLabs, are listed under On the web. Signing in to them on their own site is still being tested, so they say they aren't supported yet.
 - **Windows is planned.** TAB runs on macOS today. A Windows version is on the way.
 
 ## Install
@@ -21,7 +21,7 @@ When several apps need you at once, red comes first, then yellow, then green. Ap
 Open Terminal (press ⌘ Space, type Terminal, press Return), paste this line, press Return, then type `y`:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/araje-bot/TAB-Track-AI-Balance/v0.1.1/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/araje-bot/TAB-Track-AI-Balance/v0.2.0/install.sh | bash
 ```
 
 TAB opens with a short welcome and shows the AI apps it found. It needs macOS 13 or later, on Apple silicon or Intel.
@@ -34,26 +34,26 @@ TAB used to be called TUM. If you had TUM, the installer replaces it, and TAB br
 
 ![The welcome screen](docs/images/welcome.png)
 
-**Pick your AI apps.** TAB finds the ones on your Mac. Tap the plug to connect one. Connected apps say so in green. Only apps TAB can show real numbers for can be connected. Apps it can't read yet wait under Coming soon.
+**Pick your AI apps.** TAB finds the ones on your Mac, and lists AI apps you use in a browser under On the web. Tap the plug to connect one. Only apps TAB can show real numbers for can be connected.
 
 ![The list of AI apps, with Claude, Codex, Cursor and Grok Bot connected](docs/images/apps.png)
 
-**Choose when to be nudged.** Pick when the icon turns yellow. You see the change right away.
+**Choose when to be nudged.** One slider sets two levels. The icon turns yellow at Getting low and red at Almost out. You see the change right away.
 
 ![The nudge settings](docs/images/nudge.png)
 
-**Click the icon any time.** Each circle fills up to match what is left. It opens on the view you picked during setup, and you can switch between Session, Weekly and Monthly. Click an app for more, and Sync to get its latest numbers.
+**Click the icon any time.** Each circle fills up to match what is left. It opens on the view you picked during setup, and you can switch between Session, Weekly and Monthly. Each tab shows only the apps that have that kind of limit. Click an app for more, and Sync to get its latest numbers. An app with two accounts shows a small 2, and you drag its accounts to choose which one TAB uses first.
 
 <p>
-  <img src="docs/images/popover.png" alt="The menu bar popover showing Claude at 24% and Codex at 88%" width="320">
+  <img src="docs/images/popover.png" alt="The menu bar popover showing Claude at 32% and Codex at 88%" width="320">
   &nbsp;&nbsp;
-  <img src="docs/images/detail.png" alt="One app opened, showing 24% left and when it resets" width="320">
+  <img src="docs/images/detail.png" alt="One app opened, showing 32% left and when it resets" width="320">
 </p>
 
 ## Uninstall
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/araje-bot/TAB-Track-AI-Balance/v0.1.1/uninstall.sh | bash
+curl -fsSL https://raw.githubusercontent.com/araje-bot/TAB-Track-AI-Balance/v0.2.0/uninstall.sh | bash
 ```
 
 Or drag TAB from Applications to the Trash.
@@ -89,7 +89,7 @@ After a TAB update, macOS may ask once more, since it ties Always Allow to the e
 
 ## Feedback
 
-Click **Any issues? Let us know** at the bottom of TAB and type your note. It goes to the TAB team through Google Forms, with your TAB and macOS versions and the reply email if you add one. If you have a GitHub account, you can also open an issue here.
+Click **Feedback for us** at the bottom of TAB (or **Any issues? Let us know** in Settings) and type your note. It goes to the TAB team through Google Forms, with your TAB and macOS versions and the reply email if you add one. If you have a GitHub account, you can also open an issue here.
 
 ## License
 

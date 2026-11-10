@@ -31,7 +31,7 @@ extension Store {
 
     /// A store filled with sample data, for previews. Nothing is saved and nothing is fetched.
     static func preview(apps: [String: Double] = ["claude": 62, "codex": 88],
-                        onboardingDone: Bool = true, threshold: Double = 25,
+                        onboardingDone: Bool = true, threshold: Double = 40,
                         mode: WatchMode = .session) -> Store {
         // A scratch settings suite, so sample data never touches the real settings.
         let suite = "edu.umd.inst474.tab.preview"
@@ -42,12 +42,26 @@ extension Store {
         s.detected = Detector.scan()
         for id in apps.keys where s.app(id) == nil { s.detected.append(s.sampleApp(id)) }
         s.watch = mode
-        s.threshold = threshold
+        s.setLevels(red: min(25, threshold - Store.levelGap), yellow: threshold)
         s.onboardingDone = onboardingDone
         s.connected = apps.keys.sorted()
         for (id, pct) in apps {
             s.snapshots[id] = ProviderSnapshot(limits: sampleLimits(id, pct: pct), fetchedAt: Date())
         }
+        s.tipsSeen = true
         return s
+    }
+
+    /// Sample accounts for the v4 screens: two Claude sign-ins (and two ChatGPT ones when asked),
+    /// the work one low and the personal one with room. Dummy emails only.
+    func addSampleAccounts(_ id: String, first: Double = 24, second: Double = 81) {
+        let emails = ["maya@brightpixel.co", "maya.chen@gmail.com"]
+        accounts[id] = [Account(id: "\(id)-1", email: emails[0], source: "auto", order: 0),
+                        Account(id: "\(id)-2", email: emails[1], source: "code", order: 1)]
+        accountSnapshots[id] = ["\(id)-1": ProviderSnapshot(limits: Self.sampleLimits(id, pct: first), fetchedAt: Date()),
+                                "\(id)-2": ProviderSnapshot(limits: Self.sampleLimits(id, pct: second), fetchedAt: Date())]
+        if !connected.contains(id) { connected.append(id) }
+        useAccountInUse(id)
+        updateAlerts()
     }
 }

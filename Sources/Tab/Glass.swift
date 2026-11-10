@@ -387,7 +387,3 @@ extension WatchMode {
     static var segments: [(WatchMode, String)] { allCases.map { ($0, $0.rawValue) } }
 }
 
-/// "Turn yellow at" choices. Red is automatic at 10%, so yellow always starts above it.
-enum Thresholds {
-    static let yellow: [(Double, String)] = [(20, "20%"), (25, "25%"), (40, "40%")]
-}

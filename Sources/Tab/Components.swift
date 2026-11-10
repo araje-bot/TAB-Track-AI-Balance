@@ -505,11 +505,13 @@ struct AppMenu: View {
     /// Nil for apps TAB can't read yet: there is nothing to sync, so the menu only offers Remove.
     let refresh: (() -> Void)?
     let remove: () -> Void
+    /// Apps that can hold several accounts also offer "Add account" (v4).
+    var addAccount: (() -> Void)? = nil
     @State private var anchor = MenuAnchor.Holder()
 
     var body: some View {
         Button {
-            AppMenuItems.show(name: name, refresh: refresh, remove: remove, below: anchor.view)
+            AppMenuItems.show(name: name, refresh: refresh, remove: remove, addAccount: addAccount, below: anchor.view)
         } label: {
             Label("More for \(name)", systemImage: "ellipsis")
         }
@@ -538,23 +540,27 @@ struct AppMenuItems: View {
     let name: String
     let refresh: (() -> Void)?
     let remove: () -> Void
+    var addAccount: (() -> Void)? = nil
 
     var body: some View {
         if let refresh {
             Button("Sync", systemImage: "arrow.clockwise", action: refresh)
-            Divider()
         }
+        if let addAccount {
+            Button("Add account", systemImage: "plus", action: addAccount)
+        }
+        if refresh != nil || addAccount != nil { Divider() }
         Button("Remove \(name)", systemImage: "minus.circle", action: remove)
     }
 
     /// Opens the items as a standard pull-down menu under `view`.
-    @MainActor static func show(name: String, refresh: (() -> Void)?, remove: @escaping () -> Void, below view: NSView?) {
+    @MainActor static func show(name: String, refresh: (() -> Void)?, remove: @escaping () -> Void,
+                                addAccount: (() -> Void)? = nil, below view: NSView?) {
         guard let view else { return }
         let menu = NSMenu()
-        if let refresh {
-            menu.addItem(ActionItem("Sync", symbol: "arrow.clockwise", action: refresh))
-            menu.addItem(.separator())
-        }
+        if let refresh { menu.addItem(ActionItem("Sync", symbol: "arrow.clockwise", action: refresh)) }
+        if let addAccount { menu.addItem(ActionItem("Add account", symbol: "plus", action: addAccount)) }
+        if refresh != nil || addAccount != nil { menu.addItem(.separator()) }
         menu.addItem(ActionItem("Remove \(name)", symbol: "minus.circle", action: remove))
         menu.popUp(positioning: nil, at: NSPoint(x: 0, y: view.bounds.height + 4), in: view)
     }
@@ -586,12 +592,12 @@ struct ShortcutHint: View {
         let shortcut = keys.dropLast().reduce(Text("")) { text, key in
             text + Text(Image(systemName: Self.symbol(key))) + Text(" + ")
         } + Text(keys.last ?? "")
-        (Text(before + " ") + shortcut.fontWeight(.semibold).foregroundColor(.primary) + Text(" " + after))
+        (Text(before.isEmpty ? "" : before + " ") + shortcut.fontWeight(.semibold).foregroundColor(.primary) + Text(" " + after))
             .font(.callout)
             .foregroundStyle(.secondary)
             .lineLimit(1)
             .fixedSize()
-            .accessibilityLabel("\(before) \(store.activeShortcut.spoken) \(after)")
+            .accessibilityLabel("\(before.isEmpty ? "" : before + " ")\(store.activeShortcut.spoken) \(after)")
     }
 
     private static func symbol(_ key: String) -> String {

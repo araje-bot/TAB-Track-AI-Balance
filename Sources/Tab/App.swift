@@ -138,11 +138,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // matches other Dock icons. The edge-to-edge logo looked oversized in the Dock.
         if let logo = AppLogo.iconImage() { NSApp.applicationIconImage = logo }
         SQLiteRead.sweepLeftovers()
+        if store.onboardingDone { WebAuth.cleanUpIfOff() }
         store.scan()
 
         status = StatusItemController(store: store,
                                       openSettings: { [weak self] in self?.showSettings() },
-                                      openAddMore: { [weak self] in self?.showSettings() },
+                                      openConnect: { [weak self] app, more in self?.showConnect(app, addingAccount: more) },
                                       showWelcome: { [weak self] in self?.showOnboarding() })
         #if DEBUG
         status.dev = DevHooks(onboarding: { [weak self] in self?.showOnboarding(step: $0) },
@@ -385,6 +386,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func updateDockBeforeShowing() {
         if NSApp.activationPolicy() != .regular { NSApp.setActivationPolicy(.regular) }
+    }
+
+    /// The connect sheet in its own small window, for Add app and Add account from the popover.
+    private var connectWindow: WindowHost?
+    func showConnect(_ app: AIApp, addingAccount: Bool = false) {
+        connectWindow?.onClose = nil
+        connectWindow?.window.close()
+        let sheet = ConnectSheet(store: store, app: app, addingAccount: addingAccount, done: { [weak self] in
+            self?.connectWindow?.window.close()
+        })
+        let size = NSHostingView(rootView: sheet).fittingSize
+        let host = WindowHost(size: NSSize(width: 480, height: max(size.height, 420)), root: sheet)
+        host.onClose = { [weak self] in self?.connectWindow = nil }
+        connectWindow = host
+        updateDockBeforeShowing()
+        host.show()
     }
 
     func showSettings() {

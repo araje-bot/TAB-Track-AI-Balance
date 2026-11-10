@@ -42,11 +42,7 @@ enum Catalog {
         CatalogEntry(id: "gemini", name: "Gemini", category: "Chat & code", appNames: ["Gemini"],
                      bundleIDs: [], providerID: "gemini",
                      source: "Gemini CLI sign-in",
-                     hint: "One-time Google sign-in", symbol: "sparkles", markers: [".gemini"]),
-        // ChatGPT isn't listed on its own: its limits are the same as Codex's and show there.
-        CatalogEntry(id: "perplexity", name: "Perplexity", category: "Search", appNames: ["Perplexity"],
-                     bundleIDs: ["ai.perplexity.mac"], providerID: nil, source: "",
-                     hint: "Usage view planned", symbol: "magnifyingglass"),
+                     hint: "Google sign-in", symbol: "sparkles", markers: [".gemini"]),
         CatalogEntry(id: "copilot", name: "GitHub Copilot", category: "Code", appNames: ["GitHub Copilot"],
                      bundleIDs: [], providerID: "copilot",
                      source: "Copilot sign-in",
@@ -72,30 +68,40 @@ enum Catalog {
                      hint: "Cloud usage planned", symbol: "desktopcomputer"),
     ]
 
-    /// Coming soon (AK): paid creative and work tools with a very large user base whose credits
-    /// people run out of, and a real way to read them (docs/SYNC-PLAN.md). Midjourney, Kling and
-    /// Runway have none yet, so they aren't promised. One that is installed on this Mac shows
-    /// with its real icon, still in Coming soon, until TAB can read it.
-    static let planned: [CatalogEntry] = [
-        soon("elevenlabs", "ElevenLabs", "Voice", "waveform", "Credits view planned", apps: ["ElevenLabs", "ElevenReader"]),
-        soon("higgsfield", "Higgsfield", "Video", "film", "Credits view planned"),
-        soon("suno", "Suno", "Music", "music.note", "Credits view planned"),
-        soon("manus", "Manus", "Agents", "sparkles", "Credits view planned"),
-    ]
-
-    private static func soon(_ id: String, _ name: String, _ category: String, _ symbol: String, _ hint: String,
-                             apps: [String]? = nil) -> CatalogEntry {
-        CatalogEntry(id: id, name: name, category: category, appNames: apps ?? [name], bundleIDs: [], providerID: nil,
-                     source: "", hint: hint, symbol: symbol)
+    /// AI apps people use in a browser (v4). Their sign-in happens on their own site, in a TAB
+    /// window. Only ChatGPT has a usage reader so far; the rest say they're not supported yet.
+    static var webEntries: [CatalogEntry] {
+        WebSite.all.map { w in
+            CatalogEntry(id: w.id, name: w.name, category: w.category, appNames: [], bundleIDs: [],
+                         providerID: w.readsUsage ? w.id : nil, source: "\(w.name) sign-in",
+                         hint: w.readsUsage ? "Sign in on \(w.domain)" : "Not supported yet", symbol: "globe")
+        }
     }
 
-    /// The Coming soon cards, as apps.
-    static var plannedApps: [AIApp] {
-        planned.map { AIApp(id: $0.id, name: $0.name, category: $0.category, appURL: nil, supported: false,
-                            credentialFound: false, hint: $0.hint, source: "") }
+    /// Web apps, as apps. The featured four come first, in the Figma order.
+    static var webApps: [AIApp] {
+        let order = WebSite.featured + WebSite.all.map(\.id).filter { !WebSite.featured.contains($0) }
+        return order.compactMap(webApp)
     }
 
-    static func entry(_ id: String) -> CatalogEntry? { all.first { $0.id == id } ?? planned.first { $0.id == id } }
+    static func webApp(_ id: String) -> AIApp? {
+        guard let w = WebSite.site(id) else { return nil }
+        let reads = w.readsUsage && WebAuth.enabled
+        return AIApp(id: w.id, name: w.name, category: w.category, appURL: nil, supported: reads,
+                     credentialFound: reads, hint: reads ? "Sign in on \(w.domain)" : "Not supported yet",
+                     source: "\(w.name) sign-in", domain: w.domain)
+    }
+
+    /// The kinds of limit each app has (v4): the popover tabs list only apps with that kind.
+    static func kinds(_ id: String) -> Set<WatchMode> {
+        switch id {
+        case "cursor", "copilot", "zed": return [.monthly]
+        case "grokbot", "grok": return [.weekly]
+        default: return [.session, .weekly]
+        }
+    }
+
+    static func entry(_ id: String) -> CatalogEntry? { all.first { $0.id == id } ?? webEntries.first { $0.id == id } }
 }
 
 enum Detector {
@@ -121,7 +127,7 @@ enum Detector {
     static func scan() -> [AIApp] {
         let apps = installedApps()
         var out: [AIApp] = []
-        for e in Catalog.all + Catalog.planned {
+        for e in Catalog.all {
             var url: URL? = e.appNames.compactMap { apps[$0] }.first
             if url == nil {
                 url = e.bundleIDs.compactMap { NSWorkspace.shared.urlForApplication(withBundleIdentifier: $0) }.first

@@ -15,10 +15,27 @@ protocol UsageProvider {
     /// `interactive` is true only right after the person clicked Connect or Allow.
     /// Only then may macOS show a Keychain prompt.
     func fetch(interactive: Bool) async throws -> [UsageLimit]
+    /// The sign-ins on this Mac that TAB can read as separate accounts (v4). Most apps have one,
+    /// "auto": the app's usual sign-in. Claude and Codex can list more.
+    func sources() -> [String]
+    /// Reads one sign-in: its limits, and its email when the sign-in carries one. The email is
+    /// for TAB's own screens only and is never logged.
+    func read(source: String, interactive: Bool) async throws -> Reading
 }
 
 extension UsageProvider {
     func fetch() async throws -> [UsageLimit] { try await fetch(interactive: false) }
+    func sources() -> [String] { ["auto"] }
+    func read(source: String, interactive: Bool) async throws -> Reading {
+        Reading(limits: try await fetch(interactive: interactive), email: nil)
+    }
+}
+
+/// A plausible email or account name from a sign-in, or nil. Only for TAB's own screens.
+func cleanEmail(_ v: Any?) -> String? {
+    guard let s = (v as? String)?.trimmingCharacters(in: .whitespacesAndNewlines), !s.isEmpty, s.count <= 120,
+          s.unicodeScalars.allSatisfy({ $0.value >= 0x20 && $0.value != 0x7F }) else { return nil }
+    return s
 }
 
 /// Reads a sign-in or settings file. Only a plain file of a sane size is loaded, never a link or
@@ -137,6 +154,23 @@ enum Keychain {
                        kSecMatchLimit as String: kSecMatchLimitOne])
     }
 
+    /// The account names stored under a service, without reading any secret. Never prompts.
+    static func accounts(service: String) -> [String] {
+        var q: [String: Any] = [kSecClass as String: kSecClassGenericPassword,
+                                kSecAttrService as String: service,
+                                kSecReturnAttributes as String: true,
+                                kSecMatchLimit as String: kSecMatchLimitAll]
+        q[kSecUseAuthenticationUI as String] = kSecUseAuthenticationUIFail
+        uiLock.lock(); defer { uiLock.unlock() }
+        var was: DarwinBoolean = true
+        SecKeychainGetUserInteractionAllowed(&was)
+        SecKeychainSetUserInteractionAllowed(false)
+        defer { SecKeychainSetUserInteractionAllowed(was.boolValue) }
+        var out: CFTypeRef?
+        guard SecItemCopyMatching(q as CFDictionary, &out) == errSecSuccess, let items = out as? [[String: Any]] else { return [] }
+        return items.compactMap { $0[kSecAttrAccount as String] as? String }
+    }
+
     /// Looks for an item with every prompt turned off, so even a locked keychain can't ask
     /// (these checks run during scans, before onboarding is done).
     private static func quietlyExists(_ query: [String: Any]) -> Bool {
@@ -247,7 +281,7 @@ enum Keychain {
     }
 
     /// Deletes an item with every prompt turned off. If macOS wants to ask, it just stays.
-    private static func quietDelete(service: String) {
+    static func quietDelete(service: String) {
         let q: [String: Any] = [kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: service,
                                 kSecUseAuthenticationUI as String: kSecUseAuthenticationUIFail]
         uiLock.lock(); defer { uiLock.unlock() }
@@ -331,14 +365,71 @@ struct ClaudeProvider: UsageProvider {
         ClaudeDesktop.hasMaterial() || Keychain.exists(service: Self.codeService) || FileManager.default.fileExists(atPath: codeFile.path)
     }
 
+    /// The Claude app and Claude Code each keep a sign-in. They are often the same account; TAB
+    /// tells them apart by their email (v4) and lists two accounts only when they differ.
+    func sources() -> [String] {
+        var out: [String] = []
+        if ClaudeDesktop.hasMaterial() { out.append("desktop") }
+        if Keychain.exists(service: Self.codeService) || FileManager.default.fileExists(atPath: codeFile.path) { out.append("code") }
+        return out
+    }
+
+    func read(source: String, interactive: Bool) async throws -> Reading {
+        let token: String
+        switch source {
+        case "desktop":
+            token = try ClaudeDesktop.accessToken(interactive: interactive)
+        case "code":
+            let cred = try loadCode(interactive: interactive)
+            if cred.expired { throw ProviderError.expired("Open Claude Code once, then TAB can check it again.") }
+            token = cred.accessToken
+        default:
+            let r = try await fetchWithToken(interactive: interactive)
+            return Reading(limits: r.limits, email: await Self.email(token: r.token))
+        }
+        do {
+            let limits = try await Self.usage(token: token)
+            return Reading(limits: limits, email: await Self.email(token: token))
+        } catch ProviderError.http(401) {
+            throw ProviderError.expired("Open Claude Code or the Claude app once, then TAB can check it again.")
+        }
+    }
+
+    /// Emails already looked up, by a hash of the token, so the profile is asked once per sign-in.
+    private static var emails: [String: String] = [:]
+    private static let emailLock = NSLock()
+
+    /// The account's email from Claude's OAuth profile, sent only to api.anthropic.com. Kept in
+    /// memory only and never logged. Nil if the profile can't be read; usage still shows.
+    static func email(token: String) async -> String? {
+        guard let token = headerSafe(token) else { return nil }
+        let key = SHA256.hash(data: Data(token.utf8)).prefix(8).map { String(format: "%02x", $0) }.joined()
+        emailLock.lock(); let known = emails[key]; emailLock.unlock()
+        if let known { return known }
+        var req = URLRequest(url: URL(string: "https://api.anthropic.com/api/oauth/profile")!)
+        req.setValue("Bearer " + token, forHTTPHeaderField: "Authorization")
+        req.setValue("oauth-2025-04-20", forHTTPHeaderField: "anthropic-beta")
+        req.setValue("application/json", forHTTPHeaderField: "Accept")
+        guard let (data, resp) = try? await HTTP.raw(req, provider: "claude-profile", host: "api.anthropic.com", log: false),
+              resp.statusCode == 200, let o = try? JSONSerialization.jsonObject(with: data),
+              let e = cleanEmail(J.dig(o, "account", "email") ?? J.dig(o, "account", "email_address")) else { return nil }
+        emailLock.lock(); emails[key] = e; emailLock.unlock()
+        return e
+    }
+
     func fetch(interactive: Bool) async throws -> [UsageLimit] {
+        try await fetchWithToken(interactive: interactive).limits
+    }
+
+    /// The usual path: the Claude app first, then Claude Code. Also returns the token that worked.
+    private func fetchWithToken(interactive: Bool) async throws -> (limits: [UsageLimit], token: String) {
         var lastError: Error = ProviderError.notSignedIn("Open the Claude app or Claude Code once, then try again.")
 
         // 1. The Claude desktop app keeps its own session fresh while you use it. Read-only.
         if ClaudeDesktop.hasMaterial() {
             do {
                 let token = try ClaudeDesktop.accessToken(interactive: interactive)
-                return try await Self.usage(token: token)
+                return (try await Self.usage(token: token), token)
             } catch { lastError = error; Diagnostics.log("claude desktop: \(Diagnostics.describe(error))") }
         }
 
@@ -348,7 +439,7 @@ struct ClaudeProvider: UsageProvider {
         do {
             let cred = try loadCode(interactive: interactive)
             if cred.expired { throw ProviderError.expired("Open Claude Code or the Claude app once, then TAB can check it again.") }
-            do { return try await Self.usage(token: cred.accessToken) }
+            do { return (try await Self.usage(token: cred.accessToken), cred.accessToken) }
             catch ProviderError.http(401) {
                 throw ProviderError.expired("Open Claude Code or the Claude app once, then TAB can check it again.")
             }
@@ -574,17 +665,55 @@ struct CodexProvider: UsageProvider {
     }
 
     func fetch(interactive: Bool) async throws -> [UsageLimit] {
-        let (doc, _) = try load(interactive: interactive)
+        try await read(source: "auto", interactive: interactive).limits
+    }
+
+    /// Codex's usual sign-in, other Codex sign-ins in the Keychain (one per Codex folder), and
+    /// folders the person added with Add account ("folder:<path>", kept by the store).
+    func sources() -> [String] {
+        let usual = keychainAccount
+        let others = Keychain.accounts(service: Self.keychainService).filter { $0 != usual && $0.hasPrefix("cli|") }
+        return ["auto"] + others.sorted().map { "keychain:" + $0 }
+    }
+
+    /// True when a folder holds a Codex sign-in TAB can read.
+    static func isCodexFolder(_ path: String) -> Bool {
+        Files.isSmallRegularFile(URL(fileURLWithPath: path).appendingPathComponent("auth.json").path)
+    }
+
+    func read(source: String, interactive: Bool) async throws -> Reading {
+        let doc = try load(source: source, interactive: interactive)
         guard let tokens = doc["tokens"] as? [String: Any], let access = tokens["access_token"] as? String, !access.isEmpty else {
             throw ProviderError.notSignedIn("Open Codex and sign in, then try again.")
         }
+        // The email is in Codex's own id token (a JWT). Read on this Mac, never sent or logged.
+        let claims = (tokens["id_token"] as? String).flatMap(JWT.payload)
+        let email = cleanEmail(claims?["email"]) ?? cleanEmail(J.dig(claims ?? [:], "https://api.openai.com/profile", "email"))
         // Read only: TAB never renews Codex's sign-in, which could sign the person out of Codex
         // (security review M1). Codex renews it itself; its local session files cover the gap.
         do {
-            return try await usage(access: access, account: headerSafe(tokens["account_id"] as? String, max: 128))
+            let limits = try await usage(access: access, account: headerSafe(tokens["account_id"] as? String, max: 128))
+            return Reading(limits: limits, email: email)
         } catch ProviderError.http(401) {
             throw ProviderError.expired("Open Codex once, then TAB can check it again.")
         }
+    }
+
+    private func load(source: String, interactive: Bool) throws -> [String: Any] {
+        if source.hasPrefix("folder:") {
+            let dir = URL(fileURLWithPath: String(source.dropFirst(7)))
+            guard let d = readJSONFile(dir.appendingPathComponent("auth.json")) as? [String: Any] else {
+                throw ProviderError.notSignedIn("That Codex folder has no sign-in. Open Codex with it, then try again.")
+            }
+            return d
+        }
+        if source.hasPrefix("keychain:") {
+            let r = Keychain.read(service: Self.keychainService, account: String(source.dropFirst(9)), interactive: interactive)
+            if r.status == errSecSuccess, let data = r.data, let d = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] { return d }
+            if Keychain.isPermissionProblem(r.status) { throw interactive ? ProviderError.denied("macOS didn't let TAB check this app. Try again and choose Always Allow.") : ProviderError.needsApproval }
+            throw ProviderError.notSignedIn("Open Codex and sign in, then try again.")
+        }
+        return try load(interactive: interactive).0
     }
 
     private func load(interactive: Bool) throws -> ([String: Any], Bool) {
@@ -879,6 +1008,13 @@ struct CursorProvider: UsageProvider {
 
     static func userID(fromToken t: String) -> String? { CursorAuth.userID(fromToken: t) }
 
+    /// The email inside TAB's own Cursor sign-in token, when it has one. No Cursor files are read.
+    func read(source: String, interactive: Bool) async throws -> Reading {
+        let limits = try await fetch(interactive: interactive)
+        let tok = try? await CursorAuth.token(interactive: false)
+        return Reading(limits: limits, email: tok.flatMap(JWT.payload).flatMap { cleanEmail($0["email"]) })
+    }
+
     /// Cursor leaves numbers out entirely when they are 0, so a plan with no number yet means 0% used.
     static func parse(_ o: Any) -> [UsageLimit]? {
         let plan = (J.find(o, keys: ["planUsage"]) as? [String: Any])
@@ -1058,6 +1194,13 @@ enum GitHubAuth {
 
 struct CopilotProvider: UsageProvider {
     let id = "copilot"
+    /// The GitHub user name from the last reply, shown as the account (v4). Never logged.
+    private static var login: String?
+    private static let loginLock = NSLock()
+    private var lastLogin: String? {
+        get { Self.loginLock.lock(); defer { Self.loginLock.unlock() }; return Self.login }
+        nonmutating set { Self.loginLock.lock(); Self.login = newValue; Self.loginLock.unlock() }
+    }
     private var editorFiles: [URL] { [homeURL(".config/github-copilot/apps.json"), homeURL(".config/github-copilot/hosts.json")] }
     private var ghHosts: URL { homeURL(".config/gh/hosts.yml") }
 
@@ -1124,7 +1267,13 @@ struct CopilotProvider: UsageProvider {
         req.setValue("2025-04-01", forHTTPHeaderField: "X-Github-Api-Version")
         let r = try await HTTP.json(req, provider: id)
         guard let out = Self.parse(r) else { throw ProviderError.format("Copilot") }
+        lastLogin = cleanEmail(J.dig(r, "login"))
         return out
+    }
+
+    func read(source: String, interactive: Bool) async throws -> Reading {
+        let limits = try await fetch(interactive: interactive)
+        return Reading(limits: limits, email: lastLogin)
     }
 
     /// Premium requests left this month. Unlimited plans report -1 and are shown as full.
@@ -1272,7 +1421,8 @@ struct ZedProvider: UsageProvider {
 }
 
 enum Providers {
-    static let all: [String: UsageProvider] = [
+    static let all: [String: UsageProvider] = {
+        var d: [String: UsageProvider] = [
         "zed": ZedProvider(),
         "claude": ClaudeProvider(),
         "codex": CodexProvider(),
@@ -1281,5 +1431,9 @@ enum Providers {
         "grok": GrokProvider(),
         "gemini": GeminiProvider(),
         "copilot": CopilotProvider(),
-    ]
+        ]
+        // Web sign-in is behind a flag for now (v4).
+        if WebAuth.enabled { d["chatgpt"] = ChatGPTWebProvider() }
+        return d
+    }()
 }

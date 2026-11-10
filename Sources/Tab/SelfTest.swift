@@ -122,6 +122,12 @@ enum SelfTest {
         let jumped = tabs.mode
         check("Each tab lists only apps with that limit, and a warning opens its tab",
               monthlyApps == ["cursor"] && jumped == .session && tabs.tabApps == ["claude"])
+        let noNumbers = Store.preview(apps: ["claude": 60])
+        noNumbers.connected.append("copilot")
+        let byTab = WatchMode.allCases.map { m -> [String] in noNumbers.mode = m; return noNumbers.tabApps }
+        check("An app with no numbers yet shows only on the tabs its kind of limit belongs to",
+              byTab[0] == ["claude"] && byTab[1] == ["claude"] && byTab[2] == ["copilot"]
+              && Catalog.kinds("cursor") == [.monthly] && Catalog.kinds("claude") == [.session, .weekly])
         check("Tabs match their period", WatchMode.session.matches(se) && WatchMode.weekly.matches(wk) && WatchMode.monthly.matches(mo)
               && !WatchMode.session.matches(wk) && !WatchMode.monthly.matches(se))
 
@@ -129,22 +135,81 @@ enum SelfTest {
         let store = Store.shared
         check("8% is almost out", store.level(8) == .out)
         check("At the threshold is low", store.level(store.threshold) == .low)
-        // The product's core: healthy stays the white icon, at or under "Turn yellow at" is yellow,
-        // and 10% or less is always red, whatever yellow is set to.
-        let levels = Store.preview(apps: ["claude": 50])
-        check("Healthy is the white icon, low is yellow, 10% or less is red",
-              levels.level(80) == .ok && levels.level(levels.threshold) == .low && levels.level(10) == .out && levels.level(3) == .out
-              && Thresholds.yellow.allSatisfy { $0.0 > levels.redAt })
+        // v4 two levels: red from 0 to R, yellow from R to Y, fine above Y. Every R and Y the slider
+        // allows, every half percent: exactly one level, no gap and no overlap.
+        var zonesOK = true
+        for r in stride(from: 0.0, through: 25, by: 1) {
+            for y in stride(from: r + Store.levelGap, through: Store.yellowMax, by: 1) {
+                for p in stride(from: 0.0, through: 100, by: 0.5) {
+                    let want: Level = p <= r ? .out : (p <= y ? .low : .ok)
+                    if Store.level(p, red: r, yellow: y) != want { zonesOK = false }
+                }
+            }
+        }
+        check("Alert levels have no gap and no overlap for every Almost out and Getting low", zonesOK)
+        let slider = Store.preview(apps: ["claude": 50])
+        slider.setLevels(red: 25, yellow: 40)
+        slider.setRedAt(55); let redCapped = slider.redAt
+        slider.setYellowAt(10); let yellowFloored = slider.yellowAt
+        slider.setYellowAt(90); let yellowCapped = slider.yellowAt
+        slider.setRedAt(-5); let redFloored = slider.redAt
+        check("The slider handles never cross and stay in range",
+              redCapped == 25 && yellowFloored == 30 && yellowCapped == 60 && redFloored == 0
+              && slider.level(slider.yellowAt) == .low && slider.level(slider.redAt) == .out)
+        func migrated(_ old: Double?) -> (Double, Double) {
+            let suite = "tab-selftest-levels"
+            let d = UserDefaults(suiteName: suite)!
+            d.removePersistentDomain(forName: suite)
+            if let old { d.set(old, forKey: "threshold") }
+            let st = Store(defaults: d)
+            d.removePersistentDomain(forName: suite)
+            return (st.redAt, st.yellowAt)
+        }
+        let m20 = migrated(20), m40 = migrated(40), m0 = migrated(nil)
+        check("Old \"Turn yellow at\" becomes Getting low, and new installs start at 25 and 40",
+              m20 == (15, 20) && m40 == (25, 40) && m0 == (25, 40))
         check("Plenty left is fine", store.level(90) == .ok)
 
-        check("Onboarding version is set", Store.onboardingVersion >= 2)
+        check("Onboarding version is set", Store.onboardingVersion >= 4)
+
+        // Several accounts (v4): the top one is used, the pill follows it, and a low one suggests
+        // the other when it has room.
+        let multi = Store.preview(apps: ["codex": 88])
+        multi.addSampleAccounts("claude", first: 24, second: 81)
+        let inUse = multi.accountInUse("claude")?.email
+        let firstPct = multi.percent("claude")
+        let suggestion = multi.switchSuggestion("claude")
+        let switchLine = multi.summary.text
+        multi.moveAccount("claude", from: 1, to: 0)
+        let afterMove = (multi.accountInUse("claude")?.email, multi.percent("claude"), multi.switchSuggestion("claude") == nil)
+        check("The top account is used first, and dragging another to the top switches to it",
+              inUse == "maya@brightpixel.co" && firstPct.map { abs($0 - 24) < 0.01 } == true
+              && afterMove.0 == "maya.chen@gmail.com" && afterMove.1.map { abs($0 - 81) < 0.01 } == true
+              && multi.accountList("claude").map(\.order) == [0, 1])
+        check("A low account suggests switching to one with room",
+              suggestion?.email == "maya.chen@gmail.com" && suggestion.map { abs($0.pct - 81) < 0.01 } == true
+              && switchLine == "Claude is low. Switch to maya.chen@gmail.com\u{00A0}(81%)." && afterMove.2)
+        let migrateSuite = "tab-selftest-accounts"
+        let md = UserDefaults(suiteName: migrateSuite)!
+        md.removePersistentDomain(forName: migrateSuite)
+        md.set(["claude", "codex"], forKey: "connected")
+        let migratedStore = Store(defaults: md)
+        md.removePersistentDomain(forName: migrateSuite)
+        check("Apps connected before v4 get one account each",
+              migratedStore.accounts["claude"]?.count == 1 && migratedStore.accounts["codex"]?.first?.source == "auto")
+        check("Emails never reach the log",
+              Diagnostics.clean("claude: maya.chen@gmail.com signed in, 200") == "claude: <email> signed in, 200"
+              && !Diagnostics.clean("x maya@brightpixel.co").contains("@"))
+        check("Update check compares versions",
+              Updates.isNewer("v0.2.0", than: "0.1.1") && !Updates.isNewer("v0.1.1", than: "0.1.1")
+              && Updates.isNewer("0.10.0", than: "0.9.9") && !Updates.isNewer("v0.1.0", than: "0.2.0"))
 
         // Logo marks from app icons.
         check("Logo mark found on a plain icon", GlyphMaker.whiteGlyph(from: testIcon(withMark: true)) != nil)
         check("Plain tile gives no logo mark", GlyphMaker.whiteGlyph(from: testIcon(withMark: false)) == nil)
 
         // Every screen can be built and laid out without crashing.
-        check("Popover lays out", fits(PopoverView(store: store, openSettings: {}, openAddMore: {})))
+        check("Popover lays out", fits(PopoverView(store: store, openSettings: {}, openConnect: { _, _ in })))
         check("Onboarding lays out", fits(OnboardingView(store: store, finish: {})))
         check("Settings lays out", fits(SettingsView(store: store)))
         check("Quick view lays out", fits(QuickView(store: store)))
@@ -168,7 +233,7 @@ enum SelfTest {
         check("Menu bar item can be created", item.button != nil)
         // The real menu bar item turns into the pill when an app is low, and back when all is good.
         let barStore = Store.preview(apps: ["claude": 24])
-        let bar = StatusItemController(store: barStore, openSettings: {}, openAddMore: {}, showWelcome: {})
+        let bar = StatusItemController(store: barStore, openSettings: {}, openConnect: { _, _ in }, showWelcome: {})
         RunLoop.main.run(until: Date().addingTimeInterval(0.8))
         let pillWidth = bar.item.length
         // How far the popover's anchor sits from the slot's right edge. It must be 0 for both the
@@ -189,6 +254,7 @@ enum SelfTest {
         let popAfter = bar.popover.contentViewController?.view.window?.frame
         let itemAfter = bar.item.button?.window?.frame
         _ = (itemBefore, itemAfter)
+        print("        popover before \(popBefore.map { NSStringFromRect($0) } ?? "none"), after \(popAfter.map { NSStringFromRect($0) } ?? "none")")
         check("The open popover stays put when the pill turns into the icon (AK)",
               popBefore != nil && popAfter != nil && abs(popBefore!.minX - popAfter!.minX) < 1 && abs(popBefore!.maxY - popAfter!.maxY) < 1)
         bar.popover.performClose(nil)
@@ -217,7 +283,7 @@ enum SelfTest {
             RunLoop.main.run(until: Date().addingTimeInterval(0.01))
         }
         let start = flow.urgent == nil
-        set("claude", 20); let first = flow.urgent?.id
+        set("claude", 30); let first = flow.urgent?.id
         set("codex", 35); let second = flow.urgent?.id          // news takes the pill at once
         let turn = Store.pillTurnLength + 1
         flow.rotatePill(now: Date().addingTimeInterval(turn)); let third = flow.urgent?.id        // then Claude's turn
@@ -270,7 +336,7 @@ enum SelfTest {
         green.snapshots["claude"] = ProviderSnapshot(limits: Store.sampleLimits("claude", pct: 8), fetchedAt: now)
         check("A warning always wins over the green pill", green.pillState?.level == .out)
         // Got it on a warning: back to the icon until the app gets lower.
-        let ack = Store.preview(apps: ["claude": 20], threshold: 25)
+        let ack = Store.preview(apps: ["claude": 32], threshold: 40)
         let ackYellow = ack.pillState?.level
         ack.acknowledgeAlert()
         let ackCleared = ack.pillState == nil && ack.summary.dismiss == nil
@@ -293,8 +359,8 @@ enum SelfTest {
                                                                label: "Usage monitoring", switchesView: true).frame(width: 300)).fittingSize
         check("Tabs fill their width", abs(tabsSize.width - 300) < 1 && tabsSize.height >= 28)
         // Card notes never wrap or cut off: 24 characters, 18 when the Connect button shares the row.
-        check("App notes fit on one line", (Catalog.all + Catalog.planned).allSatisfy { $0.hint.count <= 24 }
-              && Catalog.all.filter { $0.id == "cursor" || $0.id == "grokbot" }.allSatisfy { $0.hint.count <= 18 })
+        check("App notes fit on one line", (Catalog.all + Catalog.webEntries).allSatisfy { $0.hint.count <= 24 }
+              && Catalog.all.filter { ["cursor", "grokbot", "gemini"].contains($0.id) }.allSatisfy { $0.hint.count <= 18 })
         // Apps TAB can't read are never connected (AK: no data, no point). They wait in Coming soon,
         // and ones connected by older versions are dropped on launch.
         let noReader = Store.preview(apps: [:])
@@ -312,9 +378,9 @@ enum SelfTest {
         oldDefaults.set(["claude", "perplexity", "lovable", "kiro"], forKey: "connected")
         let reloaded = Store(defaults: oldDefaults).connected
         oldDefaults.removePersistentDomain(forName: oldSuite)
-        check("Apps TAB can't read are never connected; they wait in Coming soon",
+        check("Apps TAB can't read are never connected or offered",
               !perplexity.canConnect && !noReader.connected.contains("perplexity") && (refusal ?? nil) != nil
-              && !noReader.readyToConnect.contains { $0.id == "perplexity" } && noReader.comingSoon.first?.id == "perplexity"
+              && !noReader.readyToConnect.contains { $0.id == "perplexity" } && !noReader.addable(web: false).contains { $0.id == "perplexity" }
               && reloaded == ["claude"])
         // The rename from TUM: settings come over once, sign-ins keep working under the new name.
         let oldName = "tab-selftest-old", newName = "tab-selftest-new"
@@ -341,19 +407,15 @@ enum SelfTest {
         check("Only installed apps count for apps TAB can't read, never a leftover folder",
               Catalog.all.filter { $0.providerID == nil }.allSatisfy { $0.markers.isEmpty }
               && !Catalog.all.contains { ["lovable", "canva", "capcut"].contains($0.id) })
-        // Coming soon: each app once, with a real logo; one found on this Mac moves to
-        // Ready to connect instead of showing twice.
-        let plannedIDs = Catalog.planned.map(\.id)
-        let soonStore = Store.preview(apps: [:])
-        soonStore.detected.append(AIApp(id: "manus", name: "Manus", category: "Agents", appURL: nil, supported: false,
-                                        credentialFound: false, hint: "Credits view planned", source: ""))
-        check("Coming soon lists each app once, with its logo, and nothing shut down",
-              !plannedIDs.isEmpty && Set(plannedIDs).count == plannedIDs.count
-              && Catalog.planned.allSatisfy { BrandLogos.all[$0.id] != nil } && !plannedIDs.contains("sora")
-              && Catalog.all.allSatisfy { !plannedIDs.contains($0.id) }
-              && soonStore.comingSoon.filter { $0.id == "manus" }.count == 1 && soonStore.comingSoon.contains { $0.id == "suno" }
-              && !soonStore.readyToConnect.contains { $0.id == "manus" }
-              && !plannedIDs.contains("midjourney"))
+        // On the web (v4): each app once, with a real logo and its domain, never also a Mac app.
+        // Only ChatGPT has a reader, and only while web sign-in is on.
+        let webIDs = Catalog.webApps.map(\.id)
+        check("Web apps are listed once, with a logo and domain, and only ChatGPT can connect",
+              Set(webIDs).count == webIDs.count && Array(webIDs.prefix(4)) == WebSite.featured
+              && Catalog.webApps.allSatisfy { BrandLogos.logo($0.id) != nil && $0.domain != nil }
+              && Catalog.all.allSatisfy { !webIDs.contains($0.id) }
+              && Catalog.webApps.filter(\.canConnect).map(\.id) == (WebAuth.enabled ? ["chatgpt"] : [])
+              && !webIDs.contains("sora") && !webIDs.contains("midjourney"))
         let fb = Feedback.issueURL("  Pill stays yellow + won't clear\nafter reset  ")?.absoluteString ?? ""
         check("Feedback opens a filled-in GitHub issue on TAB's repo, never an empty one",
               fb.hasPrefix(Feedback.repo + "/issues/new?title=Feedback") && fb.contains("%2B") && fb.contains("body=")
@@ -369,7 +431,7 @@ enum SelfTest {
         check("Feedback goes to the team's form with no account; reply email is optional and checked",
               realFormReady && formOK && Feedback.replyEmail(" a@b.co ") == "a@b.co" && Feedback.replyEmail("not an email") == nil
               && !Feedback.Config(formID: "x/../evil", message: "entry.1", email: "entry.2", version: "entry.3").ready)
-        check("ChatGPT is never listed on its own", !Detector.scan().contains { $0.name.localizedCaseInsensitiveContains("ChatGPT") })
+        check("ChatGPT is never detected as a Mac app", !Detector.scan().contains { $0.name.localizedCaseInsensitiveContains("ChatGPT") })
         // Custom shortcut rules (AK): one of ⌘, ⌥ or ⌃ plus one letter, number or Space.
         func try_(_ m: [ShortcutChoice.Modifier], _ k: String, _ c: Int) -> ShortcutProblem? {
             if case .failure(let p) = ShortcutChoice.check(modifiers: m, key: k, keyCode: UInt16(c)) { return p }
@@ -433,7 +495,7 @@ enum SelfTest {
         let more = NSHostingView(rootView: AppMenu(name: "Test", refresh: {}, remove: {})).fittingSize
         print("        more: \(Int(more.width))x\(Int(more.height))")
         check("More button matches the Connect circle", Int(more.height.rounded()) == Int(plug.height.rounded()) && abs(more.width - more.height) <= 1)
-        let rowTabs = NSHostingView(rootView: SettingRow("Turn yellow at", subtitle: "When the icon turns yellow") { SegmentedChoice(selection: .constant(25.0), options: Thresholds.yellow) }).fittingSize
+        let rowTabs = NSHostingView(rootView: SettingRow("Usage monitoring", subtitle: "Which limit TAB watches for you") { SegmentedChoice(selection: .constant(WatchMode.session), options: WatchMode.segments) }).fittingSize
         let rowSwitch = NSHostingView(rootView: SettingRow("Open at login", subtitle: "Start TAB when you turn on your Mac") { Toggle("", isOn: .constant(true)).labelsHidden().toggleStyle(.switch).controlSize(.regular) }).fittingSize
         let rowButton = NSHostingView(rootView: SettingRow("Welcome screens", subtitle: "See the welcome tour again") { Button("Show welcome screens again", systemImage: "play.fill") {}.iconButton() }).fittingSize
         check("Every settings row has the same height", Set([rowTabs.height, rowSwitch.height, rowButton.height].map { Int($0.rounded()) }).count == 1)
@@ -498,25 +560,25 @@ enum SelfTest {
         if let g = store.glyph(store.demoID) {
             render(Image(nsImage: g).resizable().frame(width: 64, height: 64).background(Color.black), "logo-mark")
         }
-        for step in 1...4 { shot(OnboardingView(store: store, finish: {}, startStep: step), NSSize(width: 800, height: OnboardingView.height), "onboarding-\(step)") }
+        for step in 1...5 { shot(OnboardingView(store: store, finish: {}, startStep: step), NSSize(width: 800, height: OnboardingView.height), "onboarding-\(step)") }
         if let app = store.detected.first(where: { $0.supported && $0.canConnect }) ?? store.detected.first {
             shot(ConnectSheet(store: store, app: app, done: {}), NSSize(width: 480, height: 600), "connect")
         }
-        shot(PopoverView(store: store, openSettings: {}, openAddMore: {}), NSSize(width: 340, height: 470), "popover")
+        shot(PopoverView(store: store, openSettings: {}, openConnect: { _, _ in }), NSSize(width: 340, height: 470), "popover")
         shot(IntroCallout(dismiss: {}), NSSize(width: 340, height: 150), "intro")
         render(HStack(spacing: 12) { LimitIcon(kind: .short, size: 14); LimitIcon(kind: .long, size: 14) }.foregroundColor(.white), "limit-icons")
 
         #if DEBUG
         // Debug builds (dev.sh) also save the sample-data states from Previews.swift.
-        let yellow = Store.preview(apps: ["claude": 24, "codex": 88, "cursor": 70])
+        let yellow = Store.preview(apps: ["claude": 32, "codex": 88, "cursor": 70])
         let red = Store.preview(apps: ["claude": 62, "codex": 8])
-        shot(PopoverView(store: yellow, openSettings: {}, openAddMore: {}), NSSize(width: 340, height: 470), "dev-popover-yellow")
-        shot(PopoverView(store: red, openSettings: {}, openAddMore: {}), NSSize(width: 340, height: 470), "dev-popover-red")
+        shot(PopoverView(store: yellow, openSettings: {}, openConnect: { _, _ in }), NSSize(width: 340, height: 470), "dev-popover-yellow")
+        shot(PopoverView(store: red, openSettings: {}, openConnect: { _, _ in }), NSSize(width: 340, height: 470), "dev-popover-red")
         shot(DetailView(store: yellow, id: "claude", back: {}), NSSize(width: 340, height: 440), "dev-detail")
         shot(DetailView(store: yellow, id: "cursor", back: {}), NSSize(width: 340, height: 440), "dev-detail-monthly")
         let greenShot = Store.preview(apps: ["claude": 62, "codex": 80, "cursor": 70])
         greenShot.snapshots["codex"] = ProviderSnapshot(limits: Store.useItLimits("codex"), fetchedAt: Date())
-        shot(PopoverView(store: greenShot, openSettings: {}, openAddMore: {}), NSSize(width: 340, height: 490), "dev-popover-green")
+        shot(PopoverView(store: greenShot, openSettings: {}, openConnect: { _, _ in }), NSSize(width: 340, height: 490), "dev-popover-green")
         // Every official logo as TAB draws it, to check sizes side by side.
         let logoIDs = BrandLogos.all.keys.sorted()
         shot(LazyVGrid(columns: Array(repeating: GridItem(.fixed(70)), count: 6), spacing: 12) {
@@ -574,17 +636,17 @@ enum SelfTest {
         shot(VStack(spacing: 0) {
             SettingRow("Usage monitoring", subtitle: "Which limit TAB watches for you") { SegmentedChoice(selection: .constant(WatchMode.monthly), options: WatchMode.segments) }
             Divider()
-            SettingRow("Turn yellow at", subtitle: "When the icon turns yellow") { SegmentedChoice(selection: .constant(25.0), options: Thresholds.yellow) }
+            AlertLevelsRow(store: yellow).padding(.vertical, 6)
             Divider()
             SettingRow("Show usage when I open a low app", subtitle: "A quick look when you open an app that's running low") { Toggle("", isOn: .constant(true)).labelsHidden().toggleStyle(.switch).controlSize(.regular) }
             Divider()
             SettingRow("Welcome screens", subtitle: "See the welcome tour again") { Button("Show welcome screens again", systemImage: "play.fill") {}.iconButton() }
         }.padding(.horizontal, 14).padding(.vertical, 6).frame(width: 520).contentCard().padding(16), NSSize(width: 560, height: 230), "dev-setting-rows")
-        shot(OnboardingView(store: Store.preview(apps: ["claude": 62], onboardingDone: false), finish: {}, startStep: 3),
-             NSSize(width: 800, height: OnboardingView.height), "dev-onboarding-3-connected")
+        shot(OnboardingView(store: Store.preview(apps: ["claude": 62], onboardingDone: false), finish: {}, startStep: 4),
+             NSSize(width: 800, height: OnboardingView.height), "dev-onboarding-4-connected")
         shot(VStack(alignment: .trailing, spacing: 12) {
             MorphMark(level: .ok, pct: nil, glyph: nil, symbol: "asterisk")
-            MorphMark(level: .low, pct: 24, glyph: yellow.glyph("claude"), symbol: "asterisk")
+            MorphMark(level: .low, pct: 32, glyph: yellow.glyph("claude"), symbol: "asterisk")
             MorphMark(level: .out, pct: 8, glyph: yellow.glyph("claude"), symbol: "asterisk")
             MorphMark(level: .use, pct: 85, glyph: yellow.glyph("claude"), symbol: "asterisk")
         }.padding(12), NSSize(width: 140, height: 140), "dev-menubar-states")
@@ -594,31 +656,31 @@ enum SelfTest {
                           credentialFound: false, hint: "Usage view planned", source: "")
         shot(VStack(spacing: 10) {
             ForEach(Array(cards.detected.prefix(3))) { app in AppCard(store: cards, app: app, connect: {}) }
-            ComingSoonCard(store: cards, app: other)
-            ComingSoonCard(store: cards, app: Catalog.plannedApps[0])
+            AppCard(store: cards, app: Catalog.webApps[0], connect: {})
+            AppCard(store: cards, app: other, connect: {})
         }.padding(12).frame(width: 280), NSSize(width: 280, height: 470), "dev-app-cards")
-        // Every Coming soon card, outside a scroll view.
-        let soon = Catalog.plannedApps
+        // Every web app card, outside a scroll view.
+        let soon = Catalog.webApps
         shot(LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: 3), spacing: 10) {
-            ForEach(soon) { app in ComingSoonCard(store: cards, app: app) }
-        }.padding(12).frame(width: 776), NSSize(width: 776, height: CGFloat((soon.count + 2) / 3) * 78 + 24), "dev-coming-soon")
+            ForEach(soon) { app in AppCard(store: cards, app: app, connect: {}) }
+        }.padding(12).frame(width: 776), NSSize(width: 776, height: CGFloat((soon.count + 2) / 3) * 78 + 24), "dev-web-apps")
         // The same key screens in Light Mode.
-        shot(OnboardingView(store: Store.preview(apps: ["claude": 62], onboardingDone: false), finish: {}, startStep: 4),
-             NSSize(width: 800, height: OnboardingView.height), "light-onboarding-4", light: true)
-        shot(PopoverView(store: yellow, openSettings: {}, openAddMore: {}), NSSize(width: 340, height: 470), "light-popover-yellow", light: true)
+        shot(OnboardingView(store: Store.preview(apps: ["claude": 62], onboardingDone: false), finish: {}, startStep: 5),
+             NSSize(width: 800, height: OnboardingView.height), "light-onboarding-5", light: true)
+        shot(PopoverView(store: yellow, openSettings: {}, openConnect: { _, _ in }), NSSize(width: 340, height: 470), "light-popover-yellow", light: true)
         shot(VStack(spacing: 10) {
             ForEach(cards.detected.prefix(3)) { app in AppCard(store: cards, app: app, connect: {}) }
         }.padding(12).frame(width: 280), NSSize(width: 280, height: 240), "light-app-cards", light: true)
         // Pictures for the README, all in Dark Mode (AK).
         let tour = Store.preview(apps: ["claude": 62, "codex": 80, "cursor": 70, "grokbot": 55], onboardingDone: false)
         shot(OnboardingView(store: tour, finish: {}, startStep: 1), NSSize(width: 800, height: OnboardingView.height), "readme-welcome")
-        shot(OnboardingView(store: tour, finish: {}, startStep: 3), NSSize(width: 800, height: OnboardingView.height), "readme-apps")
-        shot(OnboardingView(store: yellow, finish: {}, startStep: 4), NSSize(width: 800, height: OnboardingView.height), "readme-nudge")
-        shot(PopoverView(store: yellow, openSettings: {}, openAddMore: {}), NSSize(width: 340, height: 360), "readme-popover")
+        shot(OnboardingView(store: tour, finish: {}, startStep: 4), NSSize(width: 800, height: OnboardingView.height), "readme-apps")
+        shot(OnboardingView(store: yellow, finish: {}, startStep: 5), NSSize(width: 800, height: OnboardingView.height), "readme-nudge")
+        shot(PopoverView(store: yellow, openSettings: {}, openConnect: { _, _ in }), NSSize(width: 340, height: 360), "readme-popover")
         shot(DetailView(store: yellow, id: "claude", back: {}), NSSize(width: 340, height: 400), "readme-detail")
         shot(HStack(alignment: .top, spacing: 36) {
             ForEach([("All good", MorphMark(level: .ok, pct: nil, glyph: nil, symbol: "asterisk")),
-                     ("Getting low", MorphMark(level: .low, pct: 24, glyph: yellow.glyph("claude"), symbol: "asterisk")),
+                     ("Getting low", MorphMark(level: .low, pct: 32, glyph: yellow.glyph("claude"), symbol: "asterisk")),
                      ("Almost out", MorphMark(level: .out, pct: 8, glyph: yellow.glyph("claude"), symbol: "asterisk")),
                      ("Not utilized enough", MorphMark(level: .use, pct: 85, glyph: yellow.glyph("claude"), symbol: "asterisk"))], id: \.0) { item in
                 VStack(spacing: 12) {
@@ -627,6 +689,39 @@ enum SelfTest {
                 }
             }
         }.padding(24), NSSize(width: 640, height: 110), "readme-pills")
+
+        // v4 screens 01 to 13 (Figma "Prototype · TAB flow v4"), named to match.
+        let v4tour = Store.preview(apps: ["claude": 62, "codex": 80, "cursor": 70, "grokbot": 55], onboardingDone: false)
+        let v4fresh = Store.preview(apps: [:], onboardingDone: false)
+        shot(OnboardingView(store: v4tour, finish: {}, startStep: 3), NSSize(width: 800, height: OnboardingView.height), "v4-01-counts")
+        shot(OnboardingView(store: v4fresh, finish: {}, startStep: 4), NSSize(width: 800, height: OnboardingView.height), "v4-02-apps")
+        shot(OnboardingView(store: v4fresh, finish: {}, startStep: 5), NSSize(width: 800, height: OnboardingView.height), "v4-03-alerts")
+        for n in 1...4 {
+            let tipStore = Store.preview(apps: ["claude": 32, "codex": 88])
+            shot(PopoverView(store: tipStore, openSettings: {}, openConnect: { _, _ in }, startTip: n),
+                 NSSize(width: 340, height: 420), "v4-0\(n + 3)-tip-\(n)")
+        }
+        let v4add = Store.preview(apps: ["claude": 32, "codex": 88])
+        shot(PopoverView(store: v4add, openSettings: {}, openConnect: { _, _ in }, startAdding: true), NSSize(width: 340, height: 440), "v4-08-add-app")
+        if let gpt = Catalog.webApp("chatgpt") {
+            shot(ConnectSheet(store: v4add, app: gpt, done: {}), NSSize(width: 480, height: 600), "v4-09-web-sign-in")
+        }
+        let v4multi = Store.preview(apps: [:])
+        v4multi.addSampleAccounts("claude", first: 32, second: 81)
+        v4multi.addSampleAccounts("chatgpt", first: 88, second: 64)
+        shot(PopoverView(store: v4multi, openSettings: {}, openConnect: { _, _ in }), NSSize(width: 340, height: 360), "v4-10-accounts")
+        shot(DetailView(store: v4multi, id: "claude", back: {}), NSSize(width: 340, height: 340), "v4-11-account-detail")
+        let v4settings = Store.preview(apps: ["codex": 80])
+        v4settings.addSampleAccounts("claude", first: 32, second: 81)
+        shot(SettingsView(store: v4settings), NSSize(width: 580, height: 660), "v4-12-settings")
+        shot(VStack(alignment: .leading, spacing: 0) {
+            SettingRow("Usage monitoring", subtitle: "Which limit TAB watches for you") { SegmentedChoice(selection: .constant(WatchMode.session), options: WatchMode.segments) }
+            Divider()
+            AlertLevelsRow(store: v4settings).padding(.vertical, 10)
+            Divider()
+            SettingRow("TAB \(Updates.current)", subtitle: UpdateChecker.shared.line) { Button {} label: { ButtonText("Check for updates") }.secondaryButton() }
+        }.padding(.horizontal, 14).padding(.vertical, 6).frame(width: 540).contentCard().padding(16), NSSize(width: 580, height: 300), "v4-13-settings-rows")
+        shot(OnboardingView(store: v4fresh, finish: {}, startStep: 5), NSSize(width: 800, height: OnboardingView.height), "light-v4-03-alerts", light: true)
         #endif
     }
 

@@ -8,6 +8,12 @@ import ServiceManagement
 struct SettingsView: View {
     @ObservedObject var store: Store
     @State private var connectTarget: AIApp? = nil
+    @State private var accountTarget: AIApp? = nil
+    @State private var adding = false
+    /// Apps showing their accounts. Apps with several start open (v4 screen 12).
+    @State private var expanded: Set<String> = []
+    @State private var dragging: String?
+    @ObservedObject private var updates = UpdateChecker.shared
     @State private var openAtLogin = SMAppService.mainApp.status == .enabled
     @State private var copied = false
     @State private var feedback = false
@@ -21,8 +27,20 @@ struct SettingsView: View {
         .sheet(item: $connectTarget) { app in
             ConnectSheet(store: store, app: app, done: { connectTarget = nil })
         }
+        .sheet(item: $accountTarget) { app in
+            ConnectSheet(store: store, app: app, addingAccount: true, done: { accountTarget = nil })
+        }
+        .sheet(isPresented: $adding) {
+            AddAppSheet(store: store, connect: { app in
+                adding = false
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { connectTarget = app }
+            }, done: { adding = false })
+        }
         .sheet(isPresented: $feedback) { FeedbackSheet(done: { feedback = false }) }
-        .onAppear { store.scan() }
+        .onAppear {
+            store.scan()
+            expanded = Set(store.connected.filter { store.accountList($0).count > 1 })
+        }
     }
 
     private var form: some View {
@@ -34,8 +52,8 @@ struct SettingsView: View {
                     Image(systemName: "lock.shield.fill").symbolRenderingMode(.hierarchical).foregroundStyle(.tint)
                         .font(.largeTitle).frame(width: 48)
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("Your info stays secure").font(.headline)
-                        Text("TAB has no server. Each sign-in goes only to the company that made its app, to check usage. Your prompts and work are never saved or sent.")
+                        Text("TAB only reads what's left").font(.headline)
+                        Text("It never sees your prompts or work. Each sign-in stays on this Mac and only talks to its own app.")
                             .font(.subheadline).foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
                     }
@@ -59,38 +77,20 @@ struct SettingsView: View {
             }
 
             Section {
-                // Only apps TAB can read (AK). The others wait in Coming soon.
-                let ready = store.readyToConnect
-                if ready.isEmpty {
-                    Text("No AI apps found yet. Install one and TAB will find it.")
+                // Apps on this Mac TAB can read, plus web apps that are connected (v4).
+                let apps = store.settingsApps
+                if apps.isEmpty {
+                    Text("No AI apps found yet. Install one, or add one you use in a browser.")
                         .foregroundStyle(.secondary)
                 }
-                ForEach(ready) { app in appRow(app) }
+                ForEach(apps) { app in appRow(app) }
             } header: {
-                HStack {
-                    Text("Your AI apps")
+                HStack(spacing: 8) {
+                    Text("Your apps")
                     Spacer()
                     FindAppsButton(store: store)
-                }
-            }
-
-            let later = store.comingSoon
-            if !later.isEmpty {
-                // Apps TAB can't read yet, on this Mac or planned: nothing to click yet (AK).
-                Section("Coming soon") {
-                    ForEach(later) { app in
-                        HStack(spacing: 12) {
-                            AppTile(icon: store.icon(app.id), symbol: store.symbol(app.id), size: 32)
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(app.name).foregroundStyle(.secondary)
-                                Text(app.hint).font(.subheadline).foregroundStyle(.tertiary).lineLimit(1)
-                            }
-                            Spacer()
-                        }
-                        .allowsHitTesting(false)
-                        .accessibilityElement(children: .combine)
-                        .accessibilityLabel("\(app.name), coming soon. \(app.hint)")
-                    }
+                    Button { adding = true } label: { ButtonText("Add app", systemImage: "plus") }
+                        .secondaryButton()
                 }
             }
 
@@ -98,9 +98,9 @@ struct SettingsView: View {
                 SettingRow("Usage monitoring", subtitle: "Which limit TAB watches for you") {
                     SegmentedChoice(selection: $store.watch, options: WatchMode.segments, label: "Usage monitoring")
                 }
-                SettingRow("Turn yellow at", subtitle: "When the icon turns yellow") {
-                    SegmentedChoice(selection: $store.threshold, options: Thresholds.yellow, label: "Turn yellow at")
-                }
+                // The two-handle slider fills the row (v4).
+                AlertLevelsRow(store: store)
+                    .padding(.vertical, 6)
                 SettingRow("Show usage when I open a low app", subtitle: "A quick look when you open an app that's running low") {
                     Toggle("Show usage when I open a low app", isOn: $store.headsUpOnOpen).labelsHidden().toggleStyle(.switch).controlSize(.regular)
                 }
@@ -115,6 +115,14 @@ struct SettingsView: View {
             }
 
             Section("General") {
+                // The version from the app itself, and a check that asks GitHub only when clicked (v4).
+                SettingRow("TAB \(Updates.current)", subtitle: updates.line) {
+                    Button { updates.check() } label: {
+                        ButtonText(updateTitle)
+                    }
+                    .secondaryButton()
+                    .disabled(updates.state == .checking)
+                }
                 SettingRow("Welcome screens", subtitle: "See the welcome tour again") {
                     // An icon button like the others in TAB, with a filled play symbol: "play the tour
                     // again" (AK). SF Symbols already centers the triangle optically; the extra 1pt
@@ -169,32 +177,80 @@ struct SettingsView: View {
         .formStyle(.grouped)
     }
 
+    private var updateTitle: String {
+        if case .available = updates.state { return "Download" }
+        return "Check for updates"
+    }
+
     @ViewBuilder private func appRow(_ app: AIApp) -> some View {
-        HStack(spacing: 12) {
-            AppTile(icon: store.icon(app.id), symbol: store.symbol(app.id), size: 32)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(app.name).font(.headline)
-                    statusText(detail(app)).font(.subheadline).foregroundStyle(.secondary).lineLimit(2)
+        let on = store.connected.contains(app.id)
+        let open = on && expanded.contains(app.id)
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 12) {
+                AppTile(icon: store.icon(app.id), symbol: store.symbol(app.id), size: 32)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(app.name).font(.headline)
+                    detailText(app).font(.subheadline).lineLimit(2)
+                }
+                Spacer()
+                if store.needsApproval.contains(app.id) {
+                    // One more step to finish: just Connect, never Allow and Remove side by side (AK).
+                    ConnectButton(name: app.name) { connectTarget = app }
+                } else if on {
+                    AppMenu(name: app.name, refresh: store.readsUsage(app.id) ? { refresh(app) } : nil, remove: { remove(app) },
+                            addAccount: store.canAddAccount(app.id) ? { accountTarget = app } : nil)
+                } else if app.canConnect || app.isWeb {
+                    ConnectButton(name: app.name) { connectTarget = app }
+                }
             }
-            Spacer()
-            if store.needsApproval.contains(app.id) {
-                // One more step to finish: just Connect, never Allow and Remove side by side (AK).
-                ConnectButton(name: app.name) { connectTarget = app }
-            } else if store.connected.contains(app.id) {
-                AppMenu(name: app.name, refresh: store.readsUsage(app.id) ? { refresh(app) } : nil, remove: { remove(app) })
-            } else if app.canConnect {
-                ConnectButton(name: app.name) { connectTarget = app }
+            .contentShape(Rectangle())
+            // Clicking a connected app with several accounts shows or hides them.
+            .onTapGesture {
+                guard on, store.accountList(app.id).count > 1 else { return }
+                withAnimation(Motion.standard) {
+                    if expanded.contains(app.id) { expanded.remove(app.id) } else { expanded.insert(app.id) }
+                }
             }
+            if open { accounts(app) }
         }
-        .contentShape(Rectangle())
         // Right-click offers the same actions as the More button (HIG Context menus).
         .contextMenu {
-            if store.connected.contains(app.id) {
-                AppMenuItems(name: app.name, refresh: store.readsUsage(app.id) ? { refresh(app) } : nil, remove: { remove(app) })
-            } else if app.canConnect {
+            if on {
+                AppMenuItems(name: app.name, refresh: store.readsUsage(app.id) ? { refresh(app) } : nil, remove: { remove(app) },
+                             addAccount: store.canAddAccount(app.id) ? { accountTarget = app } : nil)
+            } else if app.canConnect || app.isWeb {
                 Button("Connect \(app.name)") { connectTarget = app }
             }
         }
+    }
+
+    /// An app's accounts, top first, indented under its name. Drag to reorder.
+    private func accounts(_ app: AIApp) -> some View {
+        let list = store.accountList(app.id)
+        return VStack(spacing: 8) {
+            ForEach(Array(list.enumerated()), id: \.element.id) { i, a in
+                AccountRow(store: store, appID: app.id, account: a, stale: store.isStale(app.id))
+                    .opacity(dragging == a.id ? 0.4 : 1)
+                    .onDrag {
+                        dragging = a.id
+                        return NSItemProvider(object: a.id as NSString)
+                    }
+                    .onDrop(of: [.text], delegate: AccountDrop(store: store, appID: app.id, target: a.id, dragging: $dragging))
+                    .contextMenu {
+                        if i > 0 { Button("Use first") { withAnimation(Motion.standard) { store.useFirst(app.id, account: a.id) } } }
+                        Button("Remove account") { withAnimation(Motion.standard) { store.removeAccount(app.id, account: a.id) } }
+                    }
+            }
+            if store.canAddAccount(app.id) {
+                HStack {
+                    Spacer()
+                    Button { accountTarget = app } label: { ButtonText("Add account", systemImage: "plus") }
+                        .secondaryButton()
+                }
+            }
+        }
+        .padding(.leading, 44)
+        .animation(Motion.standard, value: list.map(\.id))
     }
 
     /// True when TAB runs from /Applications or ~/Applications, the only places a login item may point at.
@@ -207,15 +263,11 @@ struct SettingsView: View {
     private func refresh(_ app: AIApp) { Task { await store.syncNow(app.id) } }
     private func remove(_ app: AIApp) { withAnimation { store.disconnect(app.id) } }
 
-    private func detail(_ app: AIApp) -> String {
-        if store.connected.contains(app.id) {
-            if let e = store.errors[app.id] { return e }
-            return store.connectedText(app.id)
-        }
-        if app.usesCursorSignIn && !CursorAuth.signedIn { return app.hint }
-        if app.usesGitHubSignIn && !GitHubAuth.signedIn && !CopilotProvider().hasLocalSignIn() { return app.hint }
-        if app.usesGoogleSignIn && !GeminiAuth.signedIn && !GeminiProvider().hasCLISignIn { return app.hint }
-        if !app.supported { return app.hint }
-        return app.canConnect ? app.source : app.hint
+    /// "2 accounts · updated 2 min ago" in green when connected, a problem in amber, or
+    /// "Not connected" (v4).
+    private func detailText(_ app: AIApp) -> Text {
+        guard store.connected.contains(app.id) else { return Text("Not connected").foregroundColor(.secondary) }
+        if let e = store.errors[app.id] { return Text(e).foregroundColor(.secondary) }
+        return Text(store.accountsLine(app.id)).foregroundColor(Palette.connectedText)
     }
 }

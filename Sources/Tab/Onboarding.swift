@@ -11,20 +11,22 @@ enum TextStyle {
     static let tertiary = Color(nsColor: .tertiaryLabelColor)
 }
 
-/// First-run setup: 4 short steps. Every step's title sits in the same place.
+/// First-run setup: 5 short steps (v4 added "Each app counts its own way"). Every step's title sits in the same place.
 /// Nothing is read and no prompt can appear until the person chooses to connect an app.
 struct OnboardingView: View {
     @ObservedObject var store: Store
     var finish: () -> Void
     @State private var step: Int
     @State private var connectTarget: AIApp? = nil
-    private let total = 4
+    private let total = 5
+    /// The apps step, where Next waits for a connected app.
+    static let appsStep = 4
 
     /// `connecting` opens the connect sheet for that app right away (Developer menu and previews).
     init(store: Store, finish: @escaping () -> Void, startStep: Int = 1, connecting: AIApp? = nil) {
         self.store = store
         self.finish = finish
-        _step = State(initialValue: connecting == nil ? startStep : 3)
+        _step = State(initialValue: connecting == nil ? startStep : Self.appsStep)
         _connectTarget = State(initialValue: connecting)
     }
 
@@ -32,8 +34,9 @@ struct OnboardingView: View {
         switch step {
         case 1: return ("Welcome to TAB", "Know how much AI you have left, in every app you use.")
         case 2: return ("How TAB works", "Three steps, then it stays quietly in your menu bar.")
-        case 3: return ("Which AI apps do you use?", store.connected.isEmpty ? "Connect at least one to continue." : "Connect the ones you want TAB to watch.")
-        default: return ("When should TAB nudge you?", "The icon turns yellow when an app runs low. Nothing pops up.")
+        case 3: return ("Each app counts its own way", "Some limits reset every few hours, some every week, some every month.")
+        case 4: return ("Which AI apps do you use?", "Connect the ones you want TAB to watch. Mac app or browser.")
+        default: return ("When should TAB nudge you?", "The icon changes color as an app runs low. Nothing pops up.")
         }
     }
 
@@ -41,7 +44,7 @@ struct OnboardingView: View {
     static let height: CGFloat = 600
 
     /// Next stays off on the apps step until at least one app is connected. Back always works.
-    private var canGoNext: Bool { step != 3 || !store.connected.isEmpty }
+    private var canGoNext: Bool { step != Self.appsStep || !store.connected.isEmpty }
 
     /// Pages crossfade in place, the system's standard for swapping a window's content (System
     /// Settings panes do the same). No sliding; AK found both slide versions odd. The pages share
@@ -62,7 +65,7 @@ struct OnboardingView: View {
                 HStack(alignment: .center) {
                     Text(header.0).font(TextStyle.title).foregroundStyle(.primary)
                     Spacer()
-                    if step == 3 { FindAppsButton(store: store) }
+                    if step == Self.appsStep { FindAppsButton(store: store) }
                 }
                 Text(header.1).font(TextStyle.subtitle).foregroundStyle(.secondary)
             }
@@ -73,7 +76,8 @@ struct OnboardingView: View {
                 switch step {
                 case 1: WelcomeStep()
                 case 2: HowStep(store: store)
-                case 3: AppsStep(store: store, connectTarget: $connectTarget)
+                case 3: CountsStep(store: store)
+                case 4: AppsStep(store: store, connectTarget: $connectTarget)
                 default: NudgesStep(store: store)
                 }
             }
@@ -345,54 +349,130 @@ struct IconStoryDemo: View {
     }
 }
 
-private struct AppsStep: View {
+/// v4 step 3: the three kinds of limit, each with the logos of apps that have it.
+private struct CountsStep: View {
     @ObservedObject var store: Store
-    @Binding var connectTarget: AIApp?
 
     var body: some View {
-        // Centered when the apps fit; scrolls only when there are more than fit. Snapshots can't
-        // draw a scroll view, so pictures show the top of the list instead.
-        if ControlMetrics.capture {
-            // The overlay takes only the space offered, so the long list never pushes the title up.
-            Color.clear.overlay(alignment: .top) { grid }.clipped()
-        } else {
-            ViewThatFits(in: .vertical) {
-                grid
-                ScrollView { grid }
+        VStack(spacing: 16) {
+            HStack(alignment: .top, spacing: 14) {
+                card(.session, "clock", "Resets every few hours", "Short bursts of heavy use.")
+                card(.weekly, "calendar", "Resets every 7 days", "Your total for the week.")
+                card(.monthly, "calendar", "Resets with your plan", "Your plan's total for the month.")
+            }
+            Card(padding: 12) {
+                Label {
+                    Text("Not every app has all three. Cursor only has a monthly limit, so it only shows under Monthly.")
+                        .font(.callout).foregroundStyle(.primary)
+                        .fixedSize(horizontal: false, vertical: true)
+                } icon: {
+                    Image(systemName: "lightbulb.fill").foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
     }
 
-    /// Two groups (AK): apps on this Mac that TAB can read, ready to connect, and "Coming soon",
-    /// apps on this Mac it can't read yet plus the apps it plans to support. No numbers, no Connect.
-    private var grid: some View {
-        let ready = store.readyToConnect
-        let later = store.comingSoon
-        // 28pt between the two groups, so they read as separate sections (AK).
-        return VStack(alignment: .leading, spacing: 28) {
-            if !ready.isEmpty {
-                VStack(alignment: .leading, spacing: 8) {
-                    GroupTitle("Ready to connect")
-                    LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: 3), spacing: 10) {
-                        ForEach(ready) { app in
-                            AppCard(store: store, app: app, connect: { connectTarget = app })
-                                .transition(.scale(scale: 0.92).combined(with: .opacity))
+    /// Apps on this Mac with that kind of limit, or the usual ones when none is found yet.
+    private func apps(_ kind: WatchMode) -> [String] {
+        let found = store.readyToConnect.map(\.id).filter { Catalog.kinds($0).contains(kind) }
+        if !found.isEmpty { return Array(found.prefix(4)) }
+        switch kind {
+        case .session: return ["claude", "codex"]
+        case .weekly: return ["claude", "codex", "grokbot"]
+        case .monthly: return ["cursor"]
+        }
+    }
+
+    private func card(_ kind: WatchMode, _ symbol: String, _ resets: String, _ caption: String) -> some View {
+        Card(padding: 10, cornerRadius: Radius.card + 10) {
+            VStack(spacing: 0) {
+                VStack(spacing: 8) {
+                    Label(kind.rawValue, systemImage: symbol).font(.title2.weight(.semibold))
+                    Text(resets).font(.callout).foregroundStyle(.secondary)
+                    HStack(spacing: 8) {
+                        ForEach(apps(kind), id: \.self) { id in
+                            AppTile(icon: store.icon(id), symbol: store.symbol(id), size: 30)
                         }
                     }
+                    .padding(.top, 4)
+                }
+                .frame(maxWidth: .infinity)
+                .frame(height: 180)
+                .modifier(StepWell(cornerRadius: Radius.card))
+                Text(caption).font(.body).foregroundStyle(.primary)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 44)
+                    .padding(.top, 12)
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .accessibilityElement(children: .combine)
+    }
+}
+
+private struct AppsStep: View {
+    @ObservedObject var store: Store
+    @Binding var connectTarget: AIApp?
+    @State private var adding = false
+
+    var body: some View {
+        // Centered when the apps fit; scrolls only when there are more than fit. Snapshots can't
+        // draw a scroll view, so pictures show the top of the list instead.
+        Group {
+            if ControlMetrics.capture {
+                // The overlay takes only the space offered, so the long list never pushes the title up.
+                Color.clear.overlay(alignment: .top) { grid }.clipped()
+            } else {
+                ViewThatFits(in: .vertical) {
+                    grid
+                    ScrollView { grid }
                 }
             }
-            if !later.isEmpty {
+        }
+        .sheet(isPresented: $adding) {
+            AddAppSheet(store: store, connect: { app in adding = false; connectTarget = app }, done: { adding = false })
+        }
+    }
+
+    /// The web group: the featured four, plus any other web app already connected.
+    private var web: [AIApp] {
+        store.webApps.filter { WebSite.featured.contains($0.id) || store.connected.contains($0.id) }
+    }
+
+    /// Two groups (v4): "On this Mac" and "On the web". Each title sits close to its grid, with a
+    /// wider gap between the groups.
+    private var grid: some View {
+        let mac = store.readyToConnect
+        return VStack(alignment: .leading, spacing: 24) {
+            if !mac.isEmpty {
                 VStack(alignment: .leading, spacing: 8) {
-                    GroupTitle("Coming soon")
-                    // The same grid, card and size as above; only the Connect button is missing (AK).
-                    LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: 3), spacing: 10) {
-                        ForEach(later) { app in ComingSoonCard(store: store, app: app) }
-                    }
+                    GroupTitle("On this Mac").frame(height: 28)
+                    cards(mac)
                 }
+            }
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    GroupTitle("On the web")
+                    Spacer()
+                    Button { adding = true } label: { ButtonText("Add app", systemImage: "plus") }
+                        .secondaryButton()
+                }
+                .frame(height: 28)
+                cards(web)
             }
         }
         .padding(.bottom, 6)
         .animation(.spring(response: 0.4, dampingFraction: 0.85), value: store.detected.map(\.id))
+    }
+
+    private func cards(_ apps: [AIApp]) -> some View {
+        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: 3), spacing: 10) {
+            ForEach(apps) { app in
+                AppCard(store: store, app: app, connect: { connectTarget = app })
+                    .transition(.scale(scale: 0.92).combined(with: .opacity))
+            }
+        }
     }
 }
 
@@ -403,32 +483,6 @@ struct GroupTitle: View {
     var body: some View {
         Text(text).font(.subheadline.weight(.semibold)).foregroundStyle(.secondary)
             .accessibilityAddTraits(.isHeader)
-    }
-}
-
-/// An app TAB can't show yet: the same card as a supported app (same shape, size, icon and
-/// text), with no Connect button. Dimmed, with a grayed-out icon, and not clickable (AK).
-struct ComingSoonCard: View {
-    @ObservedObject var store: Store
-    let app: AIApp
-
-    var body: some View {
-        Card {
-            HStack(spacing: 10) {
-                AppTile(icon: store.icon(app.id), symbol: store.symbol(app.id), size: 36)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(app.name).font(.headline).lineLimit(1)
-                    // How TAB plans to support it, in one short line (never "Coming soon" again).
-                    Text(app.hint).font(.subheadline).foregroundStyle(.secondary).lineLimit(1)
-                }
-                Spacer(minLength: 4)
-            }
-            .frame(minHeight: 44)
-        }
-        // Normal colors (AK): there's no button, so nothing needs to look disabled.
-        .allowsHitTesting(false)
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(app.name), coming soon. \(app.hint)")
     }
 }
 
@@ -458,7 +512,7 @@ struct AppCard: View {
         .contextMenu {
             if isConnected {
                 AppMenuItems(name: app.name, refresh: syncAction, remove: remove)
-            } else if app.canConnect {
+            } else if app.canConnect || app.isWeb {
                 Button("Connect \(app.name)", action: connect)
             }
         }
@@ -470,7 +524,8 @@ struct AppCard: View {
         if app.usesCursorSignIn && !CursorAuth.signedIn { return app.hint }
         if app.usesGitHubSignIn && !GitHubAuth.signedIn && !CopilotProvider().hasLocalSignIn() { return app.hint }
         if app.usesGoogleSignIn && !GeminiAuth.signedIn && !GeminiProvider().hasCLISignIn { return app.hint }
-        // Apps TAB can't read yet say so up front, so connecting one is an informed choice.
+        // Web apps show their site (v4); ones TAB can't read yet say so.
+        if let d = app.domain { return d }
         if !app.supported { return app.hint }
         return app.canConnect ? app.category : app.hint
     }
@@ -486,7 +541,7 @@ struct AppCard: View {
     @ViewBuilder private var trailing: some View {
         if isConnected {
             AppMenu(name: app.name, refresh: syncAction, remove: remove)
-        } else if app.canConnect {
+        } else if app.canConnect || app.isWeb {
             ConnectButton(name: app.name, action: connect)
         }
     }
@@ -497,6 +552,8 @@ struct AppCard: View {
 struct ConnectSheet: View {
     @ObservedObject var store: Store
     let app: AIApp
+    /// Add account (v4): the same sheet adds another sign-in for an app already connected.
+    var addingAccount = false
     var done: () -> Void
 
     private enum Phase { case ready, connecting, connected, failed }
@@ -519,32 +576,31 @@ struct ConnectSheet: View {
     private var needsCursor: Bool { app.usesCursorSignIn && !CursorAuth.signedIn }
     private var needsGitHub: Bool { app.usesGitHubSignIn && !GitHubAuth.signedIn && !CopilotProvider().hasLocalSignIn() }
     private var needsGoogle: Bool { app.usesGoogleSignIn && !GeminiAuth.signedIn }
-    private var needsBrowser: Bool { needsCursor || needsGitHub || needsGoogle }
+    /// Web apps (v4) sign in on their own site, in a TAB window.
+    private var isWeb: Bool { app.isWeb }
+    private var webReady: Bool { isWeb && app.supported }
+    private var needsBrowser: Bool { needsCursor || needsGitHub || needsGoogle || isWeb }
 
     var body: some View {
         VStack(spacing: 18) {
+            // The two logos look the same size (v4). App icon art has about 18% padding built in,
+            // so its box is that much larger than TAB's edge-to-edge logo.
             HStack(spacing: 12) {
                 AppLogo(size: 52)
                 Image(systemName: "plus").font(.headline).foregroundStyle(.secondary)
-                AppTile(icon: store.icon(app.id), symbol: store.symbol(app.id), size: 52)
+                AppTile(icon: store.icon(app.id), symbol: store.symbol(app.id), size: 52 / 0.82)
+                    .frame(width: 52, height: 52)
             }
-            Text("Connect \(app.name)").font(.title.bold()).foregroundStyle(.primary)
+            Text(addingAccount ? "Add a \(app.name) account" : "Connect \(app.name)").font(.title.bold()).foregroundStyle(.primary)
             Card {
                 VStack(spacing: 0) {
-                    if app.supported {
-                        InfoRow(symbol: "gauge.with.dots.needle.50percent", text: "See how much you have left")
-                        Divider()
-                        InfoRow(symbol: "calendar", text: "See when it resets")
-                    } else {
-                        // Nothing to read yet, so the sheet says plainly what connecting does (AK).
-                        InfoRow(symbol: "square.grid.2x2", text: "Keep it in your list with your other apps")
-                        Divider()
-                        InfoRow(symbol: "clock.badge.checkmark", text: "Its numbers show up once TAB supports it")
-                    }
+                    InfoRow(symbol: "gauge.with.dots.needle.50percent", text: "See how much you have left")
                     Divider()
-                    InfoRow(symbol: "eye.slash", text: "TAB never saves or sends your prompts or work")
+                    InfoRow(symbol: "calendar", text: "See when it resets")
                     Divider()
-                    InfoRow(symbol: "lock", text: "It can't change anything. Remove it anytime")
+                    InfoRow(symbol: "eye.slash", text: "TAB never sees your prompts or work")
+                    Divider()
+                    InfoRow(symbol: "lock", text: "Read-only. Remove it anytime in Settings")
                 }
             }
 
@@ -560,7 +616,7 @@ struct ConnectSheet: View {
                 }
                 Button(action: primary) { ButtonText(primaryTitle) }
                     .keyboardShortcut(.defaultAction).primaryButton()
-                    .disabled(phase == .connecting)
+                    .disabled(phase == .connecting || (isWeb && !app.supported))
             }
         }
         .padding(24)
@@ -569,7 +625,7 @@ struct ConnectSheet: View {
 
     private var primaryTitle: String {
         switch phase {
-        case .ready: return needsCursor || needsGitHub || needsGoogle ? "Sign in" : (macMayAsk ? "Continue" : "Connect")
+        case .ready: return needsBrowser ? "Sign in" : (macMayAsk ? "Continue" : (addingAccount ? "Find account" : "Connect"))
         case .connecting: return "Connecting"
         case .connected: return "Done"
         case .failed: return "Try again"
@@ -579,7 +635,21 @@ struct ConnectSheet: View {
     @ViewBuilder private var status: some View {
         switch phase {
         case .ready:
-            if needsGitHub {
+            if let d = app.domain {
+                if app.supported {
+                    note("arrow.up.forward.square", .secondary, "You'll sign in on \(d)",
+                         "A \(app.name) sign-in window opens. Sign in like you always do. TAB keeps only what it needs, on this Mac.")
+                } else {
+                    note("clock", .secondary, "Not supported yet",
+                         "TAB can't show \(app.name)'s usage yet. It's on the list.")
+                }
+            } else if addingAccount && app.id == "codex" {
+                note("folder", .secondary, "Pick the other account's Codex folder",
+                     "TAB looks for another Codex sign-in on this Mac first. If there isn't one, pick its folder.")
+            } else if addingAccount {
+                note("person.2", .secondary, "Sign in to the other account first",
+                     "Sign in to it in the \(app.name) app or Claude Code. TAB finds it on this Mac.")
+            } else if needsGitHub {
                 note("safari", .secondary, "Sign in once with GitHub",
                      "TAB shows a short code and opens github.com. Paste it there and approve.")
             } else if needsCursor {
@@ -604,11 +674,13 @@ struct ConnectSheet: View {
                     ActivityRing()
                     VStack(alignment: .leading, spacing: 2) {
                         Text(needsCursor ? "Waiting for you on cursor.com" : needsGitHub ? "Getting a code from GitHub"
-                             : needsGoogle ? "Waiting for you to sign in" : "Connecting").font(.headline)
+                             : (needsGoogle || isWeb) ? "Waiting for you to sign in" : "Connecting").font(.headline)
                         if needsCursor {
                             Text("Click Approve there. This updates on its own.").font(TextStyle.caption).foregroundStyle(.secondary)
                         } else if needsGoogle {
                             Text("Sign in in the Google window. It closes on its own.").font(TextStyle.caption).foregroundStyle(.secondary)
+                        } else if isWeb {
+                            Text("Sign in in the \(app.name) window. It closes on its own.").font(TextStyle.caption).foregroundStyle(.secondary)
                         } else if macMayAsk {
                             Text("If macOS asks, choose Always Allow.").font(TextStyle.caption).foregroundStyle(.secondary)
                         }
@@ -618,9 +690,8 @@ struct ConnectSheet: View {
                 .padding(6)
             }
         case .connected:
-            note("checkmark.circle.fill", Palette.green, "You're all set", app.supported
-                 ? "\(app.name) now shows in your menu bar."
-                 : "\(app.name) is in your list. Its numbers come once TAB supports it.")
+            note("checkmark.circle.fill", Palette.green, "You're all set",
+                 addingAccount ? "TAB now watches both \(app.name) accounts." : "\(app.name) now shows in your menu bar.")
         case .failed:
             note("exclamationmark.circle.fill", Palette.redText, "Couldn't connect", reason)
         }
@@ -630,7 +701,8 @@ struct ConnectSheet: View {
         if phase == .connected { done(); return }
         phase = .connecting
         work = Task { @MainActor in
-            if let r = await store.connectAndCheck(app.id) {
+            let result = addingAccount ? await store.addAccount(app.id) : await store.connectAndCheck(app.id)
+            if let r = result {
                 if Task.isCancelled { return }
                 reason = r
                 phase = .failed
@@ -681,36 +753,22 @@ struct ConnectSheet: View {
     }
 }
 
+/// v4 step 5: the three states with the chosen levels, the two-handle "Alert levels" slider
+/// right under them in the same card, then the other settings in their own card.
 private struct NudgesStep: View {
     @ObservedObject var store: Store
-    @State private var bump = false
 
-    /// Only the yellow pill is explained here (AK: the red one confused people, and the setting
-    /// below only moves the yellow point). The first card shows the change itself, white icon to
-    /// yellow pill, with "Turn yellow at" right under it in the same card, so the link is plain.
-    /// The pill and its line preview the chosen value live (HIG: show the effect of a setting right
-    /// away). The other settings sit in their own card below.
     var body: some View {
-        let t = Int(store.threshold)
         VStack(spacing: 12) {
             Card(padding: 6) {
                 VStack(spacing: 0) {
-                    HStack(spacing: 8) {
-                        state("All good", Text("Above \(t)% left")) { TankMark(size: 34, color: .primary) }
-                        Image(systemName: "arrow.right")
-                            .font(.title2.weight(.semibold))
-                            .foregroundStyle(.secondary)
-                            .accessibilityHidden(true)
-                        state("Turns yellow", Text("At ") + Text("\(t)%").foregroundColor(Pill.amberText).bold() + Text(" or less")) {
-                            PillView(glyph: store.glyph(store.demoID), symbol: store.symbol(store.demoID), pct: store.threshold, level: .low, scale: 1.6)
-                                .scaleEffect(bump ? 1.08 : 1)
-                        }
-                    }
-                    .padding(.vertical, 14)
+                    LevelStates(store: store)
+                        .padding(.vertical, 12)
                     Divider().padding(.horizontal, 6)
-                    settingRow("Turn yellow at", subtitle: "How much is left when it turns yellow") {
-                        SegmentedChoice(selection: $store.threshold, options: Thresholds.yellow, label: "Turn yellow at")
-                    }
+                    AlertLevelsRow(store: store)
+                        .padding(.horizontal, 12)
+                        .padding(.top, 12)
+                        .padding(.bottom, 10)
                 }
             }
             // The rows bring their own 10pt form inset, so the card needs less padding of its own.
@@ -726,21 +784,6 @@ private struct NudgesStep: View {
                 }
             }
         }
-        // A short pulse on the pill whenever the threshold changes, so the link is felt.
-        .onChange(of: store.threshold) { _ in
-            withAnimation(Motion.standard) { bump = true }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) { withAnimation(Motion.standard) { bump = false } }
-        }
-    }
-
-    private func state<V: View>(_ label: String, _ detail: Text, @ViewBuilder _ v: () -> V) -> some View {
-        VStack(spacing: 8) {
-            v().frame(height: 40)
-            Text(label).font(.title3.weight(.semibold))
-            detail.font(.subheadline).foregroundStyle(.secondary).monospacedDigit()
-        }
-        .frame(maxWidth: .infinity)
-        .accessibilityElement(children: .combine)
     }
 
     private func settingRow<V: View>(_ title: String, subtitle: String, @ViewBuilder _ control: () -> V) -> some View {

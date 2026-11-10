@@ -67,6 +67,23 @@ struct ProviderSnapshot {
     var fetchedAt: Date
 }
 
+/// One sign-in for an app (v4). Most apps have one; Claude and Codex can have several, and a
+/// web app gets one per sign-in. The top account (lowest `order`) is used first; the person drags
+/// to reorder. `source` says which sign-in TAB reads ("auto" is the app's usual one).
+/// The email is shown in TAB only and never logged.
+struct Account: Codable, Identifiable, Hashable {
+    var id: String
+    var email: String?
+    var source: String
+    var order: Int
+}
+
+/// What one read of a sign-in gives back: the limits and, when the sign-in carries it, its email.
+struct Reading {
+    var limits: [UsageLimit]
+    var email: String?
+}
+
 /// An AI app found on this Mac.
 struct AIApp: Identifiable, Hashable {
     let id: String
@@ -77,6 +94,9 @@ struct AIApp: Identifiable, Hashable {
     var credentialFound: Bool    // a sign-in exists on this Mac
     var hint: String             // what to do when it can't connect yet
     var source: String           // where the numbers come from
+    /// Web apps (v4) have no Mac app: TAB signs in on their own site. The domain is the subtitle.
+    var domain: String? = nil
+    var isWeb: Bool { domain != nil }
     /// Only apps TAB can read are connected (AK: no data, no point). Apps it can't read yet
     /// wait in Coming soon. Supported apps also need their sign-in on this Mac.
     var canConnect: Bool { supported && credentialFound }

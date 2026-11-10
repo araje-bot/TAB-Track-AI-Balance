@@ -25,6 +25,8 @@ enum Palette {
     static let amberText = Pill.amberText
     static let redText = Pill.redText
     static let connectedText = Pill.connectedText
+    /// First-open tips (v4): a solid card a step above the popover, white in Light Mode.
+    static let tipFill = Pill.tipFill
 
     /// The water in a usage circle: blue when fine, and the Figma pill's yellow and red when low.
     static func water(_ l: Level) -> Color {
@@ -70,6 +72,7 @@ enum Pill {
     /// "Connected" (AK): system green in Dark Mode, where it reads well, and the same deeper
     /// green as `greenText` in Light Mode, where system green is too pale on a card (about 2:1).
     static let connectedText = adaptive(light: 0x1B7536, dark: 0x30D158)
+    static let tipFill = adaptive(light: 0xFFFFFF, dark: 0x3A3A3C)
 
     private static func adaptive(light: UInt32, dark: UInt32) -> Color {
         func ns(_ h: UInt32) -> NSColor {
@@ -194,8 +197,10 @@ enum Diagnostics {
 
     /// One line of at most 2000 characters, with every control character turned into a space, so
     /// nothing from a reply or an error can forge a log line (security review).
+    /// Emails are never written either (v4): anything shaped like one becomes "<email>".
     static func clean(_ s: String) -> String {
-        String(s.prefix(maxLine).unicodeScalars.map { ($0.value < 0x20 || $0.value == 0x7F) ? " " : Character($0) })
+        let one = String(s.prefix(maxLine).unicodeScalars.map { ($0.value < 0x20 || $0.value == 0x7F) ? " " : Character($0) })
+        return one.replacingOccurrences(of: #"[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}"#, with: "<email>", options: .regularExpression)
     }
 
     /// Only this user can read the log, it is never written through a link, and it never grows
@@ -250,8 +255,11 @@ enum Diagnostics {
         return "\(e.domain) \(e.code)"
     }
 
+    /// The log, under one line with the TAB and macOS versions (F13), for support.
     static func contents() -> String {
-        (try? String(contentsOf: url)) ?? "No diagnostics yet."
+        let v = ProcessInfo.processInfo.operatingSystemVersion
+        let head = "TAB \(Updates.current) (\(Updates.build)), macOS \(v.majorVersion).\(v.minorVersion).\(v.patchVersion)\n"
+        return head + ((try? String(contentsOf: url)) ?? "No diagnostics yet.")
     }
 }
 

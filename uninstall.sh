@@ -1,7 +1,7 @@
 #!/bin/bash
 # Removes TAB (Track AI Balance) from this Mac.
 #
-#   curl -fsSL https://raw.githubusercontent.com/araje-bot/TAB-Track-AI-Balance/v0.1.1/uninstall.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/araje-bot/TAB-Track-AI-Balance/v0.2.0/uninstall.sh | bash
 #
 # Quits TAB and moves TAB.app to the Trash. Settings, the diagnostics log and TAB's own sign-ins
 # are left alone and explained at the end, so nothing you may want is deleted by surprise.
@@ -97,9 +97,9 @@ main() {
   fi
   say ""
   say "If \"Open at login\" was on, remove TAB under System Settings › General › Login Items."
-  say "If you connected Cursor, Grok Bot, GitHub Copilot or Gemini through TAB's own sign-in, up to"
-  say "three items may remain in your Keychain: \"TAB Cursor sign-in\", \"TAB GitHub sign-in\" and"
-  say "\"TAB Gemini sign-in\" (before the rename they started with \"TUM\"). Delete them in Keychain"
+  say "If you connected Cursor, Grok Bot, GitHub Copilot, Gemini or ChatGPT through TAB's own sign-in,"
+  say "these items may remain in your Keychain: \"TAB Cursor sign-in\", \"TAB GitHub sign-in\","
+  say "\"TAB Gemini sign-in\" and \"TAB ChatGPT sign-in\" (before the rename they started with \"TUM\"). Delete them in Keychain"
   say "Access if you like. You can also revoke the access at cursor.com or"
   say "github.com/settings/applications, and sign out of Google at myaccount.google.com."
   say "TAB never changed any other app's sign-in, so there is nothing else to undo."

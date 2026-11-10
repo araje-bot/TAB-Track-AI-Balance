@@ -41,10 +41,10 @@ extension Store {
         }
         devFrozen = true
         guard let main = connected.first else { return }
-        // Yellow must be under the person's own "Turn yellow at" (20% would not turn yellow at 24%),
+        // Yellow sits between the two alert levels and red under Almost out (v4),
         // and every limit of the main app gets the same value, so the pill shows whichever
         // tab (Session, Weekly, Both) is picked (AK: the yellow preview did nothing).
-        let mainPct: Double = fake == .low ? max(redAt + 2, threshold - 4) : fake.pct
+        let mainPct: Double = fake == .low ? ((redAt + yellowAt) / 2).rounded(.down) : (fake == .almostOut ? min(fake.pct, redAt / 2) : fake.pct)
         for id in connected {
             let limits: [UsageLimit]
             if id == main && fake == .useIt {
@@ -107,8 +107,8 @@ extension StatusItemController {
         m.addItem(.separator())
         m.addItem(sectionTitle("Fake states"))
         m.addItem(devItem("White icon (all good)", #selector(devWhite)))
-        m.addItem(devItem("Yellow pill (24%)", #selector(devYellow)))
-        m.addItem(devItem("Red pill (8%)", #selector(devRed)))
+        m.addItem(devItem("Yellow pill (getting low)", #selector(devYellow)))
+        m.addItem(devItem("Red pill (almost out)", #selector(devRed)))
         m.addItem(devItem("Green pill (not utilized enough)", #selector(devGreen)))
         let real = devItem("Use real data", #selector(devReal))
         real.isEnabled = store.devFrozen

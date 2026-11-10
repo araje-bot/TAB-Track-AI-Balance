@@ -24,13 +24,51 @@ final class Store: ObservableObject {
     /// The tab the popover shows right now. Clicking a tab only changes this view, never the
     /// default or the pill; opening TAB again starts on `watch`.
     @Published var mode: WatchMode
-    /// "Turn yellow at": an app at or under this % left turns the icon into the yellow pill.
-    @Published var threshold: Double { didSet { defaults.set(threshold, forKey: "threshold"); updateAlerts() } }
-    /// Red is automatic (AK): at or under 10% left the pill turns red. Not a setting.
-    let redAt: Double = 10
+    /// "Alert levels" (v4): two handles on one slider. At or under `yellowAt` an app is getting
+    /// low (yellow pill); at or under `redAt` it is almost out (red). Red runs 0 to 25, yellow from
+    /// red + 5 to 60, so the zones never overlap or leave a gap (`Store.level`).
+    @Published private(set) var yellowAt: Double { didSet { defaults.set(yellowAt, forKey: "yellowAt"); updateAlerts() } }
+    @Published private(set) var redAt: Double { didSet { defaults.set(redAt, forKey: "redAt"); updateAlerts() } }
+    static let redRange: ClosedRange<Double> = 0...25
+    static let yellowMax: Double = 60
+    static let levelGap: Double = 5
+
+    /// Moves one handle. The other never moves, and the handles never cross.
+    func setRedAt(_ v: Double) {
+        let r = min(max(v.rounded(), Self.redRange.lowerBound), min(Self.redRange.upperBound, yellowAt - Self.levelGap))
+        if r != redAt { redAt = r }
+    }
+    func setYellowAt(_ v: Double) {
+        let y = min(max(v.rounded(), redAt + Self.levelGap), Self.yellowMax)
+        if y != yellowAt { yellowAt = y }
+    }
+    /// Both levels at once (previews, the self-test), kept inside their ranges.
+    func setLevels(red: Double, yellow: Double) {
+        let r = min(max(red, Self.redRange.lowerBound), Self.redRange.upperBound)
+        redAt = r
+        yellowAt = min(max(yellow, r + Self.levelGap), Self.yellowMax)
+    }
+    /// The yellow level, under its old name.
+    var threshold: Double {
+        get { yellowAt }
+        set { setLevels(red: min(redAt, newValue - Self.levelGap), yellow: newValue) }
+    }
     @Published var connected: [String] { didSet { defaults.set(connected, forKey: "connected"); updateAlerts() } }
+
+    /// Every app's sign-ins, top one first (v4). Saved without anything secret: an id, the email
+    /// shown in TAB, which sign-in it reads, and its place in the order.
+    @Published var accounts: [String: [Account]] {
+        didSet { if let d = try? JSONEncoder().encode(accounts) { defaults.set(d, forKey: "accounts") } }
+    }
+    /// The latest numbers for each account, by app and account id. `snapshots` holds the account in use.
+    @Published var accountSnapshots: [String: [String: ProviderSnapshot]] = [:]
+    @Published var accountErrors: [String: [String: String]] = [:]
+
+    /// The four first-open tips in the popover (v4) were shown once.
+    @Published var tipsSeen: Bool { didSet { defaults.set(tipsSeen, forKey: "tipsSeen") } }
+
     /// Bump when onboarding changes, so everyone sees the new version once.
-    static let onboardingVersion = 3
+    static let onboardingVersion = 4
 
     /// Identifies this installed copy of TAB: when its program file was built. Installing a
     /// new build from the DMG changes it, so the welcome screens show again on every install.
@@ -174,12 +212,25 @@ final class Store: ObservableObject {
         let saved = WatchMode(rawValue: defaults.string(forKey: "mode") ?? "") ?? .session
         watch = saved
         mode = saved
-        let t = defaults.double(forKey: "threshold")
-        // Yellow always sits above red's 10% (the old 10% option moves to 20%).
-        threshold = Thresholds.yellow.map(\.0).contains(t) ? t : (t > 0 && t <= 15 ? 20 : 25)
+        // v4: two levels. An older "Turn yellow at" becomes the yellow level, and red sits 5 below it.
+        let oldYellow = defaults.double(forKey: "threshold")
+        let y0 = defaults.object(forKey: "yellowAt") != nil ? defaults.double(forKey: "yellowAt") : (oldYellow > 0 ? oldYellow : 40)
+        let r0 = defaults.object(forKey: "redAt") != nil ? defaults.double(forKey: "redAt") : min(25, y0 - Self.levelGap)
+        let r = min(max(r0, Self.redRange.lowerBound), Self.redRange.upperBound)
+        redAt = r
+        yellowAt = min(max(y0, r + Self.levelGap), Self.yellowMax)
+        tipsSeen = defaults.bool(forKey: "tipsSeen")
+        let savedAccounts = (defaults.data(forKey: "accounts").flatMap { try? JSONDecoder().decode([String: [Account]].self, from: $0) }) ?? [:]
         // Keep only apps TAB can read (AK: a connection with no numbers is no use).
         // Apps connected with no numbers by older versions, and unknown ones, go.
-        connected = (defaults.stringArray(forKey: "connected") ?? []).filter { Providers.all[$0] != nil }
+        let ids = (defaults.stringArray(forKey: "connected") ?? []).filter { Providers.all[$0] != nil }
+        connected = ids
+        // Moving to accounts (v4): an app connected before gets one account, its usual sign-in.
+        var a = savedAccounts.filter { ids.contains($0.key) }
+        for id in ids where (a[id] ?? []).isEmpty { a[id] = [Account(id: "auto", email: nil, source: "auto", order: 0)] }
+        accounts = a
+        // Accounts (and their emails) of apps that are no longer connected don't stay in settings.
+        if Set(savedAccounts.keys) != Set(a.keys), let d = try? JSONEncoder().encode(a) { defaults.set(d, forKey: "accounts") }
         let seen = Self.onboardingSeenForThisCopy()
         onboardingDone = seen
         if defaults === UserDefaults.standard { Keychain.silentReadsAllowed = seen }
@@ -204,7 +255,7 @@ final class Store: ObservableObject {
         iconCache = [:]; glyphCache = [:]; noGlyph = []
     }
 
-    func app(_ id: String) -> AIApp? { detected.first { $0.id == id } }
+    func app(_ id: String) -> AIApp? { detected.first { $0.id == id } ?? Catalog.webApp(id) }
     func name(_ id: String) -> String {
         app(id)?.name ?? Catalog.entry(id)?.name ?? id
     }
@@ -212,13 +263,18 @@ final class Store: ObservableObject {
     /// Ready to connect: apps on this Mac that TAB can read.
     var readyToConnect: [AIApp] { detected.filter(\.supported) }
 
-    /// Coming soon: apps on this Mac that TAB can't read yet (first), then the planned apps.
-    /// Nothing here can be connected until TAB can show real numbers for it (AK).
-    var comingSoon: [AIApp] {
-        let waiting = detected.filter { !$0.supported }
-        let found = Set(detected.map(\.id))
-        return waiting + Catalog.plannedApps.filter { !found.contains($0.id) }
+    /// AI apps people use in a browser (v4). Each signs in on its own site.
+    var webApps: [AIApp] { Catalog.webApps }
+
+    /// Add app (v4): apps on this Mac and on the web that aren't connected yet, matching a search.
+    func addable(web: Bool, matching q: String = "") -> [AIApp] {
+        let list = web ? webApps : readyToConnect
+        let t = q.trimmingCharacters(in: .whitespaces)
+        return list.filter { !connected.contains($0.id) && (t.isEmpty || $0.name.localizedCaseInsensitiveContains(t)) }
     }
+
+    /// "Your apps" in Settings: apps on this Mac TAB can read, plus web apps that are connected.
+    var settingsApps: [AIApp] { readyToConnect + webApps.filter { connected.contains($0.id) } }
 
     /// True when TAB can read this app's usage. Only these can be connected.
     func readsUsage(_ id: String) -> Bool { Providers.all[id] != nil }
@@ -254,6 +310,7 @@ final class Store: ObservableObject {
 
     func connect(_ id: String) {
         guard readsUsage(id) else { return }
+        ensureAccount(id)
         if !connected.contains(id) { connected.append(id) }
         errors[id] = nil
         Task { await refresh(id) }
@@ -266,6 +323,8 @@ final class Store: ObservableObject {
     func connectAndCheck(_ id: String) async -> String? {
         // TAB can't read it yet, so there is nothing to connect.
         guard Providers.all[id] != nil else { return "TAB can't show usage for this app yet." }
+        // Web apps sign in on their own site, one account per sign-in (v4).
+        if WebSite.site(id) != nil { return await addWebAccount(id) }
         var signedInNow = false
         // Cursor and Grok Bot need TAB's own Cursor sign-in first (opens the browser).
         if (id == "cursor" || id == "grokbot") && !CursorAuth.signedIn {
@@ -290,6 +349,7 @@ final class Store: ObservableObject {
                 catch { return error.localizedDescription }
             }
         }
+        ensureAccount(id)
         if !connected.contains(id) { connected.append(id) }
         errors[id] = nil
         backoff[id] = nil
@@ -299,8 +359,13 @@ final class Store: ObservableObject {
         // Keep the progress visible briefly, so Try again never looks like nothing happened.
         let wait = 0.7 + started.timeIntervalSinceNow
         if wait > 0 { try? await Task.sleep(nanoseconds: UInt64(wait * 1_000_000_000)) }
-        if snapshots[id] != nil { return nil }
+        if snapshots[id] != nil {
+            // Other sign-ins on this Mac (a second Claude or Codex account) are found right away.
+            _ = await discoverAccounts(id)
+            return nil
+        }
         let reason = errors[id] ?? "Couldn't reach \(name(id)). Try again."
+        accounts[id] = nil
         connected.removeAll { $0 == id }
         errors[id] = nil
         // A sign-in made just now that didn't end in a working connection is dropped again, so no
@@ -314,6 +379,12 @@ final class Store: ObservableObject {
     /// Disconnecting also signs out of that service inside TAB.
     func disconnect(_ id: String) {
         connected.removeAll { $0 == id }
+        if WebSite.site(id) != nil, self === Store.shared, !Store.isPreview {
+            WebAuth.removeAll(id)
+        }
+        accounts[id] = nil
+        accountSnapshots[id] = nil
+        accountErrors[id] = nil
         snapshots[id] = nil
         errors[id] = nil
         needsApproval.remove(id)
@@ -441,10 +512,10 @@ final class Store: ObservableObject {
         }
 
         // Codex keeps its own usage in the session file. Use it when it is recent.
-        if id == "codex", !manual, let local = CodexLocal.latest(hint: codexHint),
+        if id == "codex", !manual, accountList(id).count <= 1, let local = CodexLocal.latest(hint: codexHint),
            -local.at.timeIntervalSinceNow < 600,
            local.at >= (snapshots[id]?.fetchedAt ?? .distantPast) {
-            snapshots[id] = ProviderSnapshot(limits: local.limits, fetchedAt: local.at)
+            setReading(id, account: accountList(id).first?.id ?? "auto", limits: local.limits, at: local.at, email: nil)
             errors[id] = nil
             lastAttempt[id] = Date()
             return
@@ -457,8 +528,14 @@ final class Store: ObservableObject {
         loading.insert(id)
         defer { loading.remove(id) }
         do {
-            let limits = try await p.fetch(interactive: interactive)
-            snapshots[id] = ProviderSnapshot(limits: limits, fetchedAt: Date())
+            let accs = accountList(id)
+            if accs.count <= 1 {
+                let acc = accs.first ?? Account(id: "auto", email: nil, source: "auto", order: 0)
+                let r = try await p.read(source: acc.source, interactive: interactive)
+                setReading(id, account: acc.id, limits: r.limits, at: Date(), email: r.email)
+            } else {
+                try await refreshAccounts(id, provider: p, accounts: accs, interactive: interactive)
+            }
             errors[id] = nil
             needsApproval.remove(id)
             failures[id] = nil
@@ -487,8 +564,8 @@ final class Store: ObservableObject {
 
     /// Backup for Codex: its own session file on this Mac, even if older (shown with its time).
     private func useCodexFileInstead(_ id: String) -> Bool {
-        guard id == "codex", let local = CodexLocal.latest(hint: codexHint) else { return false }
-        snapshots[id] = ProviderSnapshot(limits: local.limits, fetchedAt: local.at)
+        guard id == "codex", accountList(id).count <= 1, let local = CodexLocal.latest(hint: codexHint) else { return false }
+        setReading(id, account: accountList(id).first?.id ?? "auto", limits: local.limits, at: local.at, email: nil)
         errors[id] = nil
         return true
     }
@@ -497,8 +574,10 @@ final class Store: ObservableObject {
 
     /// The limits shown for a tab (the popover's current one unless another is given).
     func visibleLimits(_ id: String, for m: WatchMode? = nil) -> [UsageLimit] {
-        let all = snapshots[id]?.limits ?? []
-        let tab = m ?? mode
+        Self.visible(snapshots[id]?.limits ?? [], for: m ?? mode)
+    }
+
+    static func visible(_ all: [UsageLimit], for tab: WatchMode) -> [UsageLimit] {
         let match = all.filter { tab.matches($0) }
         // No limit of this period (Claude has no monthly one): show the app's own limits, so
         // nothing goes blank and warnings never get lost.
@@ -508,7 +587,11 @@ final class Store: ObservableObject {
     /// The limit that drives the pill. When both are shown, the session limit comes first;
     /// otherwise the one with the least left. Limits whose reset already passed are skipped.
     func primaryLimit(_ id: String, for m: WatchMode? = nil) -> UsageLimit? {
-        let live = visibleLimits(id, for: m).filter { !$0.isReset }
+        Self.primary(snapshots[id]?.limits ?? [], for: m ?? mode)
+    }
+
+    static func primary(_ limits: [UsageLimit], for m: WatchMode) -> UsageLimit? {
+        let live = visible(limits, for: m).filter { !$0.isReset }
         return live.first { $0.kind == .short } ?? live.min { $0.percentLeft < $1.percentLeft }
     }
 
@@ -575,10 +658,14 @@ final class Store: ObservableObject {
         return -s.fetchedAt.timeIntervalSinceNow > staleAfter
     }
 
-    func level(_ p: Double?) -> Level {
+    func level(_ p: Double?) -> Level { Self.level(p, red: redAt, yellow: yellowAt) }
+
+    /// The two-level rule (v4): out at or under red, low at or under yellow, otherwise fine.
+    /// Red is always below yellow, so every percent falls in exactly one zone.
+    static func level(_ p: Double?, red: Double, yellow: Double) -> Level {
         guard let p = p else { return .ok }
-        if p <= redAt { return .out }
-        if p <= threshold { return .low }
+        if p <= red { return .out }
+        if p <= yellow { return .low }
         return .ok
     }
 
@@ -776,7 +863,9 @@ final class Store: ObservableObject {
 
     /// The apps a tab lists: those with a limit of that period, plus any with no numbers yet.
     func apps(on m: WatchMode) -> [String] {
-        displayOrder.filter { snapshots[$0] == nil || hasLimit($0, for: m) }
+        // v4: never a tile on a tab it has nothing for. Before its first numbers, an app shows on
+        // the tabs its kind of limit belongs to (`Catalog.kinds`).
+        displayOrder.filter { snapshots[$0] == nil ? Catalog.kinds($0).contains(m) : hasLimit($0, for: m) }
     }
 
     /// The most apps any tab lists. The popover is sized for this, so switching tabs never
@@ -889,6 +978,12 @@ final class Store: ObservableObject {
         if connected.isEmpty { return Summary(symbol: "info.circle.fill", color: .secondary, text: "Connect an AI app to start") }
         if let u = urgent {
             let n = name(u.id)
+            // Another account of the same app has room (v4): say which one to switch to.
+            if let s = switchSuggestion(u.id) {
+                let pct = "(\(Int(s.pct.rounded()))%)"
+                return Summary(symbol: "arrow.left.arrow.right", color: u.level == .out ? Palette.redText : Palette.amberText,
+                               text: "\(n) is low. Switch to \(s.email)\u{00A0}\(pct).", dismiss: .alert)
+            }
             if u.level == .out {
                 let t = soonestReset(u.id).map { "\(n) resets \(Format.when($0))" } ?? "\(n) is almost out"
                 return Summary(symbol: "exclamationmark.circle.fill", color: Palette.redText, text: t, dismiss: .alert)
