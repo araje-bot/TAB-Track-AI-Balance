@@ -26,7 +26,7 @@ readonly OLD_BUNDLE_ID="edu.umd.inst474.tum"
 readonly DMG_NAME="${APP_NAME}-${VERSION}.dmg"
 readonly DMG_URL="https://github.com/${REPO}/releases/download/v${VERSION}/${DMG_NAME}"
 # The SHA-256 of TAB-0.2.0.dmg. make_dmg.sh --update-installer writes it here for each release.
-readonly DMG_SHA256="3d137365d5d04910cc2f68224e2b8426cd7949dc30dbd57f416d5526c51129e0"
+readonly DMG_SHA256="d5c19d380a6165b4b71687fd73fe9f2cb4cabee87635dd06ba2fc406137e5d73"
 
 TMP=""
 MNT=""
