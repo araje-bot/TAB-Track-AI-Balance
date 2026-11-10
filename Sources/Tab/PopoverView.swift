@@ -65,7 +65,14 @@ struct PopoverView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .onAppear {
             if startAdding { adding = true }
-            if startTip > 0 { tip = startTip; if startTip <= 3 { store.mode = [WatchMode.session, .weekly, .monthly][startTip - 1] } }
+            if startTip > 0 {
+                // Shown at once, with no fade, so a snapshot never catches it half drawn.
+                var t = Transaction(); t.disablesAnimations = true
+                withTransaction(t) {
+                    tip = startTip
+                    if startTip <= 3 { store.mode = [WatchMode.session, .weekly, .monthly][startTip - 1] }
+                }
+            }
             startTipsIfNeeded()
         }
     }
@@ -203,14 +210,14 @@ struct PopoverView: View {
             let center = tabsFrame.minX + w * (CGFloat(tip) - 0.5)
             let x = min(max(center - TipBubble.width / 2, 8), 340 - 8 - TipBubble.width)
             TipBubble(arrowX: center - x, arrowUp: true, step: tip, content: tabTip(tip),
-                      next: { tip < 3 ? showTip(tip + 1) : showTip(4) })
+                      next: { tip < 3 ? showTip(tip + 1) : showTip(4) }, skip: finishTips)
                 .offset(x: x, y: tabsFrame.maxY + 2)
                 .transition(.opacity)
                 .id(tip)
         } else if tip == 4, addFrame != .zero {
             let x = 340 - 8 - TipBubble.width
             TipBubble(arrowX: addFrame.midX - x, arrowUp: false, step: 4, content: .init(
-                title: "Use AI in a browser?", resets: nil, body: "Add ChatGPT and other browser apps, or a second account.", cursor: false),
+                symbol: "plus.circle", title: "Use AI in a browser?", message: "Add ChatGPT and other web apps, or a second account."),
                       next: finishTips)
                 // The bubble's bottom sits just above Add app.
                 .frame(height: max(addFrame.minY - 4, 0), alignment: .bottom)
@@ -221,90 +228,119 @@ struct PopoverView: View {
 
     private func tabTip(_ n: Int) -> TipBubble.Content {
         switch n {
-        case 1: return .init(title: "Session", resets: "Every 5 hours", body: "Your limit for a few hours of use.", cursor: false)
-        case 2: return .init(title: "Weekly", resets: "Every 7 days", body: "Your limit for the whole week.", cursor: false)
-        default: return .init(title: "Monthly", resets: "Every month", body: "Your plan's limit for the month.", cursor: true)
+        case 1: return .init(symbol: "clock", title: "Session", message: "Your limit for a few hours of use. It resets every 5 hours.")
+        case 2: return .init(symbol: "calendar", title: "Weekly", message: "Your limit for the whole week. It resets every 7 days.")
+        default: return .init(symbol: "creditcard", title: "Monthly", message: "Your plan's limit for the month. Cursor only has this one.")
         }
     }
 }
 
-/// One first-open tip (v4): a compact card joined to a small arrow, the step count and Next.
+/// One first-open tip (v4, redone 2026-11-09 after AK's review). Laid out like Apple's TipKit
+/// tips: a symbol, a headline title, one short secondary message, then the step count with Skip
+/// and Next. Three text sizes only (headline, subheadline, caption), so nothing competes with the
+/// title, and a regular-size Next that doesn't outweigh the text. A hairline edge and a soft
+/// shadow keep the card apart from the popover under it.
 struct TipBubble: View {
     struct Content {
+        var symbol: String
         var title: String
-        var resets: String?
-        var body: String
-        var cursor: Bool
+        var message: String
     }
-    static let width: CGFloat = 240
+    static let width: CGFloat = 264
     let arrowX: CGFloat
     let arrowUp: Bool
     let step: Int
     let content: Content
     var next: () -> Void
-    private let arrow: CGFloat = 7
+    var skip: (() -> Void)? = nil
+    private let arrow: CGFloat = 8
+    private let radius: CGFloat = 14
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(alignment: .top) {
-                Text(content.title).font(.headline)
-                Spacer(minLength: 8)
-                if let r = content.resets {
-                    VStack(alignment: .trailing, spacing: 1) {
-                        Text("Resets").font(.caption).foregroundStyle(.secondary)
-                        Text(r).font(.callout.weight(.semibold))
-                    }
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .firstTextBaseline, spacing: 10) {
+                Image(systemName: content.symbol)
+                    .font(.title3)
+                    .foregroundStyle(Color.accentColor)
+                    .frame(width: 22)
+                    .accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(content.title).font(.headline)
+                    Text(content.message)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
-            Text(content.body).font(.callout).foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-            if content.cursor {
-                HStack(spacing: 6) {
-                    AppTile(icon: BrandLogos.tile("cursor"), symbol: "cursorarrow.rays", size: 20)
-                    Text("Cursor only has this one.").font(.callout).foregroundStyle(.secondary)
-                }
-            }
-            HStack {
+            HStack(spacing: 8) {
                 Text("\(step) of 4").font(.caption).foregroundStyle(.secondary).monospacedDigit()
-                Spacer()
-                Button(action: next) { Text(step == 4 ? "Got it" : "Next").frame(minWidth: 52) }
-                    .primaryButton()
-                    .keyboardShortcut(.defaultAction)
+                Spacer(minLength: 8)
+                if let skip, step < 4 {
+                    Button("Skip", action: skip)
+                        .buttonStyle(.plain)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .help("Skip the tips")
+                }
+                nextButton
             }
+            .padding(.leading, 32)
         }
-        .padding(12)
+        .padding(14)
         .frame(width: Self.width, alignment: .leading)
         .padding(arrowUp ? .top : .bottom, arrow)
-        .background(BubbleShape(arrowX: arrowX, arrowUp: arrowUp, arrow: arrow)
-            .fill(Palette.tipFill)
-            .shadow(color: .black.opacity(0.25), radius: 10, y: 4))
+        .background {
+            let shape = BubbleShape(arrowX: arrowX, arrowUp: arrowUp, arrow: arrow, radius: radius)
+            shape.fill(Palette.tipFill)
+                .overlay(shape.stroke(Color.primary.opacity(0.12), lineWidth: 0.5))
+                .shadow(color: .black.opacity(0.3), radius: 16, y: 6)
+        }
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Tip \(step) of 4")
     }
+
+    @ViewBuilder private var nextButton: some View {
+        let b = Button(action: next) { Text(step == 4 ? "Got it" : "Next").frame(minWidth: 44) }
+            .keyboardShortcut(.defaultAction)
+        if ControlMetrics.capture {
+            b.primaryButton()
+        } else if #available(macOS 14.0, *) {
+            b.buttonStyle(.borderedProminent).buttonBorderShape(.capsule).controlSize(.regular)
+        } else {
+            b.buttonStyle(.borderedProminent).controlSize(.regular)
+        }
+    }
 }
 
-/// A rounded card with a small arrow joined to its top or bottom edge.
+/// A rounded card with a small arrow on its top or bottom edge, drawn as one outline so its
+/// hairline edge runs around the arrow too.
 struct BubbleShape: Shape {
     let arrowX: CGFloat
     let arrowUp: Bool
     let arrow: CGFloat
+    var radius: CGFloat = 14
     func path(in r: CGRect) -> Path {
-        let body = arrowUp ? CGRect(x: r.minX, y: r.minY + arrow, width: r.width, height: r.height - arrow)
-                           : CGRect(x: r.minX, y: r.minY, width: r.width, height: r.height - arrow)
-        var p = Path(roundedRect: body, cornerRadius: 12, style: .continuous)
-        let x = min(max(arrowX, 18), r.width - 18)
-        var t = Path()
+        let top = arrowUp ? r.minY + arrow : r.minY
+        let bottom = arrowUp ? r.maxY : r.maxY - arrow
+        let rad = min(radius, (bottom - top) / 2)
+        let x = r.minX + min(max(arrowX, rad + arrow + 2), r.width - rad - arrow - 2)
+        var p = Path()
+        p.move(to: CGPoint(x: r.minX + rad, y: top))
         if arrowUp {
-            t.move(to: CGPoint(x: x - arrow - 1, y: body.minY + 0.5))
-            t.addLine(to: CGPoint(x: x, y: r.minY))
-            t.addLine(to: CGPoint(x: x + arrow + 1, y: body.minY + 0.5))
-        } else {
-            t.move(to: CGPoint(x: x - arrow - 1, y: body.maxY - 0.5))
-            t.addLine(to: CGPoint(x: x, y: r.maxY))
-            t.addLine(to: CGPoint(x: x + arrow + 1, y: body.maxY - 0.5))
+            p.addLine(to: CGPoint(x: x - arrow, y: top))
+            p.addLine(to: CGPoint(x: x, y: r.minY))
+            p.addLine(to: CGPoint(x: x + arrow, y: top))
         }
-        t.closeSubpath()
-        p.addPath(t)
+        p.addArc(tangent1End: CGPoint(x: r.maxX, y: top), tangent2End: CGPoint(x: r.maxX, y: bottom), radius: rad)
+        p.addArc(tangent1End: CGPoint(x: r.maxX, y: bottom), tangent2End: CGPoint(x: r.minX, y: bottom), radius: rad)
+        if !arrowUp {
+            p.addLine(to: CGPoint(x: x + arrow, y: bottom))
+            p.addLine(to: CGPoint(x: x, y: r.maxY))
+            p.addLine(to: CGPoint(x: x - arrow, y: bottom))
+        }
+        p.addArc(tangent1End: CGPoint(x: r.minX, y: bottom), tangent2End: CGPoint(x: r.minX, y: top), radius: rad)
+        p.addArc(tangent1End: CGPoint(x: r.minX, y: top), tangent2End: CGPoint(x: r.maxX, y: top), radius: rad)
+        p.closeSubpath()
         return p
     }
 }

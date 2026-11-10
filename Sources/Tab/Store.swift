@@ -29,24 +29,29 @@ final class Store: ObservableObject {
     /// red + 5 to 60, so the zones never overlap or leave a gap (`Store.level`).
     @Published private(set) var yellowAt: Double { didSet { defaults.set(yellowAt, forKey: "yellowAt"); updateAlerts() } }
     @Published private(set) var redAt: Double { didSet { defaults.set(redAt, forKey: "redAt"); updateAlerts() } }
-    static let redRange: ClosedRange<Double> = 0...25
-    static let yellowMax: Double = 60
+    static let redRange: ClosedRange<Double> = 5...55
+    static let yellowRange: ClosedRange<Double> = 10...60
+    static var yellowMax: Double { yellowRange.upperBound }
     static let levelGap: Double = 5
 
-    /// Moves one handle. The other never moves, and the handles never cross.
+    /// Moves the red level. If it would reach yellow, yellow moves up with it, so the slider never
+    /// stops at a wall you can't see (AK, 2026-11-09).
     func setRedAt(_ v: Double) {
-        let r = min(max(v.rounded(), Self.redRange.lowerBound), min(Self.redRange.upperBound, yellowAt - Self.levelGap))
+        let r = min(max(v.rounded(), Self.redRange.lowerBound), Self.redRange.upperBound)
         if r != redAt { redAt = r }
+        if yellowAt < r + Self.levelGap { yellowAt = r + Self.levelGap }
     }
+    /// Moves the yellow level. If it would reach red, red moves down with it.
     func setYellowAt(_ v: Double) {
-        let y = min(max(v.rounded(), redAt + Self.levelGap), Self.yellowMax)
+        let y = min(max(v.rounded(), Self.yellowRange.lowerBound), Self.yellowRange.upperBound)
         if y != yellowAt { yellowAt = y }
+        if redAt > y - Self.levelGap { redAt = y - Self.levelGap }
     }
     /// Both levels at once (previews, the self-test), kept inside their ranges.
     func setLevels(red: Double, yellow: Double) {
         let r = min(max(red, Self.redRange.lowerBound), Self.redRange.upperBound)
         redAt = r
-        yellowAt = min(max(yellow, r + Self.levelGap), Self.yellowMax)
+        yellowAt = min(max(yellow, r + Self.levelGap, Self.yellowRange.lowerBound), Self.yellowRange.upperBound)
     }
     /// The yellow level, under its old name.
     var threshold: Double {
@@ -218,7 +223,7 @@ final class Store: ObservableObject {
         let r0 = defaults.object(forKey: "redAt") != nil ? defaults.double(forKey: "redAt") : min(25, y0 - Self.levelGap)
         let r = min(max(r0, Self.redRange.lowerBound), Self.redRange.upperBound)
         redAt = r
-        yellowAt = min(max(y0, r + Self.levelGap), Self.yellowMax)
+        yellowAt = min(max(y0, r + Self.levelGap, Self.yellowRange.lowerBound), Self.yellowRange.upperBound)
         tipsSeen = defaults.bool(forKey: "tipsSeen")
         let savedAccounts = (defaults.data(forKey: "accounts").flatMap { try? JSONDecoder().decode([String: [Account]].self, from: $0) }) ?? [:]
         // Keep only apps TAB can read (AK: a connection with no numbers is no use).

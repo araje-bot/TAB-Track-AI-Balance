@@ -138,7 +138,7 @@ enum SelfTest {
         // v4 two levels: red from 0 to R, yellow from R to Y, fine above Y. Every R and Y the slider
         // allows, every half percent: exactly one level, no gap and no overlap.
         var zonesOK = true
-        for r in stride(from: 0.0, through: 25, by: 1) {
+        for r in stride(from: Store.redRange.lowerBound, through: Store.redRange.upperBound, by: 1) {
             for y in stride(from: r + Store.levelGap, through: Store.yellowMax, by: 1) {
                 for p in stride(from: 0.0, through: 100, by: 0.5) {
                     let want: Level = p <= r ? .out : (p <= y ? .low : .ok)
@@ -149,12 +149,15 @@ enum SelfTest {
         check("Alert levels have no gap and no overlap for every Almost out and Getting low", zonesOK)
         let slider = Store.preview(apps: ["claude": 50])
         slider.setLevels(red: 25, yellow: 40)
-        slider.setRedAt(55); let redCapped = slider.redAt
-        slider.setYellowAt(10); let yellowFloored = slider.yellowAt
+        // Red can go right up to yellow, and pushes it along instead of stopping (AK, 2026-11-09).
+        slider.setRedAt(50); let pushedUp = (slider.redAt, slider.yellowAt)
+        slider.setYellowAt(20); let pushedDown = (slider.redAt, slider.yellowAt)
         slider.setYellowAt(90); let yellowCapped = slider.yellowAt
         slider.setRedAt(-5); let redFloored = slider.redAt
-        check("The slider handles never cross and stay in range",
-              redCapped == 25 && yellowFloored == 30 && yellowCapped == 60 && redFloored == 0
+        slider.setRedAt(99); let redCapped = (slider.redAt, slider.yellowAt)
+        check("The two levels push each other and never cross or leave their range",
+              pushedUp == (50, 55) && pushedDown == (15, 20) && yellowCapped == 60 && redFloored == 5
+              && redCapped == (55, 60)
               && slider.level(slider.yellowAt) == .low && slider.level(slider.redAt) == .out)
         func migrated(_ old: Double?) -> (Double, Double) {
             let suite = "tab-selftest-levels"
@@ -642,12 +645,14 @@ enum SelfTest {
         shot(VStack(spacing: 0) {
             SettingRow("Usage monitoring", subtitle: "Which limit TAB watches for you") { SegmentedChoice(selection: .constant(WatchMode.monthly), options: WatchMode.segments) }
             Divider()
-            AlertLevelsRow(store: yellow).padding(.vertical, 6)
+            SettingRow(LevelSlider.yellowTitle, subtitle: LevelSlider.yellowSubtitle) { LevelSlider(store: yellow, red: false) }
+            Divider()
+            SettingRow(LevelSlider.redTitle, subtitle: LevelSlider.redSubtitle) { LevelSlider(store: yellow, red: true) }
             Divider()
             SettingRow("Show usage when I open a low app", subtitle: "A quick look when you open an app that's running low") { Toggle("", isOn: .constant(true)).labelsHidden().toggleStyle(.switch).controlSize(.regular) }
             Divider()
             SettingRow("Welcome screens", subtitle: "See the welcome tour again") { Button("Show welcome screens again", systemImage: "play.fill") {}.iconButton() }
-        }.padding(.horizontal, 14).padding(.vertical, 6).frame(width: 520).contentCard().padding(16), NSSize(width: 560, height: 230), "dev-setting-rows")
+        }.padding(.horizontal, 14).padding(.vertical, 6).frame(width: 520).contentCard().padding(16), NSSize(width: 560, height: 290), "dev-setting-rows")
         shot(OnboardingView(store: Store.preview(apps: ["claude": 62], onboardingDone: false), finish: {}, startStep: 4),
              NSSize(width: 800, height: OnboardingView.height), "dev-onboarding-4-connected")
         shot(VStack(alignment: .trailing, spacing: 12) {
@@ -723,10 +728,12 @@ enum SelfTest {
         shot(VStack(alignment: .leading, spacing: 0) {
             SettingRow("Usage monitoring", subtitle: "Which limit TAB watches for you") { SegmentedChoice(selection: .constant(WatchMode.session), options: WatchMode.segments) }
             Divider()
-            AlertLevelsRow(store: v4settings).padding(.vertical, 10)
+            SettingRow(LevelSlider.yellowTitle, subtitle: LevelSlider.yellowSubtitle) { LevelSlider(store: v4settings, red: false) }
+            Divider()
+            SettingRow(LevelSlider.redTitle, subtitle: LevelSlider.redSubtitle) { LevelSlider(store: v4settings, red: true) }
             Divider()
             SettingRow("TAB \(Updates.current)", subtitle: UpdateChecker.shared.line) { Button {} label: { ButtonText("Check for updates") }.secondaryButton() }
-        }.padding(.horizontal, 14).padding(.vertical, 6).frame(width: 540).contentCard().padding(16), NSSize(width: 580, height: 300), "v4-13-settings-rows")
+        }.padding(.horizontal, 14).padding(.vertical, 6).frame(width: 540).contentCard().padding(16), NSSize(width: 580, height: 330), "v4-13-settings-rows")
         shot(OnboardingView(store: v4fresh, finish: {}, startStep: 5), NSSize(width: 800, height: OnboardingView.height), "light-v4-03-alerts", light: true)
         #endif
     }

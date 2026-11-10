@@ -1,110 +1,44 @@
 import SwiftUI
 
-/// "Alert levels" (v4): one bar with two handles. Red runs from 0 to the Almost out level, yellow
-/// from there to the Getting low level, and the rest stays neutral, so the zones always touch and
-/// never overlap. Almost out goes from 0 to 25; Getting low from Almost out + 5 up to 60. The
-/// handles can't cross (`Store.setRedAt` and `setYellowAt` clamp). Steps of 5.
-struct AlertRangeSlider: View {
+/// The two alert levels (AK, 2026-11-09, replaces the two-handle range bar). The bar read as a
+/// range you could pick up and drag, its handles were two identical white knobs, and red stopped
+/// at 25% with nothing on screen saying why. Now each level is its own row, "Turn yellow at" and
+/// "Turn red at", with a standard slider in that color and its value next to it.
+///
+/// Neither slider ever stops early. Red runs 5 to 55 and yellow 10 to 60. When one would pass the
+/// other, the other moves along with it, so red always stays 5 under yellow
+/// (`Store.setRedAt`, `setYellowAt`).
+struct LevelSlider: View {
     @ObservedObject var store: Store
-    var step: Double = 5
+    /// The red level ("Turn red at"), or the yellow one.
+    let red: Bool
 
-    private let knob: CGFloat = 20
-    private let track: CGFloat = 5
-    private let bubbleH: CGFloat = 20
-    private let bubbleW: CGFloat = 44
+    private var value: Double { red ? store.redAt : store.yellowAt }
+    private var name: String { red ? "Turn red at" : "Turn yellow at" }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            GeometryReader { g in
-                let w = g.size.width - knob
-                let rx = knob / 2 + w * CGFloat(store.redAt / 100)
-                let yx = knob / 2 + w * CGFloat(store.yellowAt / 100)
-                let (rb, yb) = bubbles(rx, yx, width: g.size.width)
-                ZStack(alignment: .topLeading) {
-                    // One continuous bar, rounded only at its two outer ends.
-                    HStack(spacing: 0) {
-                        Rectangle().fill(Pill.redLiquid).frame(width: max(0, rx))
-                        Rectangle().fill(Pill.amberLiquid).frame(width: max(0, yx - rx))
-                        Rectangle().fill(Color.primary.opacity(0.18))
-                    }
-                    .frame(height: track)
-                    .clipShape(Capsule())
-                    .offset(y: bubbleH + 10 + (knob - track) / 2)
-
-                    bubble("\(Int(store.redAt))%", fill: Pill.red, text: .white).position(x: rb, y: bubbleH / 2)
-                    bubble("\(Int(store.yellowAt))%", fill: Pill.amber, text: Pill.ink).position(x: yb, y: bubbleH / 2)
-
-                    handle("Almost out", value: store.redAt, x: rx, width: w) { store.setRedAt($0) }
-                    handle("Getting low", value: store.yellowAt, x: yx, width: w) { store.setYellowAt($0) }
-                }
-                .coordinateSpace(name: "alertTrack")
-            }
-            .frame(height: bubbleH + 10 + knob)
-
-            HStack {
-                Text("0%")
-                Spacer()
-                Text("50%")
-                Spacer()
-                Text("100%")
-            }
-            .font(.caption)
-            .foregroundStyle(.secondary)
-            .monospacedDigit()
-            .accessibilityHidden(true)
+        HStack(spacing: 10) {
+            Slider(value: Binding(get: { value }, set: { red ? store.setRedAt($0) : store.setYellowAt($0) }),
+                   in: red ? Store.redRange : Store.yellowRange, step: Store.levelGap)
+                .labelsHidden()
+                .tint(red ? Pill.redLiquid : Pill.amberLiquid)
+                .frame(width: 200)
+                .accessibilityLabel(name)
+                .accessibilityValue("\(Int(value)) percent left")
+            Text("\(Int(value))%")
+                .font(.body.weight(.semibold))
+                .monospacedDigit()
+                .foregroundStyle(red ? Pill.redText : Pill.amberText)
+                .frame(width: 44, alignment: .trailing)
+                .accessibilityHidden(true)
         }
-        .animation(Motion.standard, value: store.redAt)
-        .animation(Motion.standard, value: store.yellowAt)
+        .help(red ? "The icon turns red at \(Int(value))% left or less" : "The icon turns yellow at \(Int(value))% left or less")
     }
 
-    /// Bubble centers, pushed apart when the handles are close so the two never overlap.
-    private func bubbles(_ rx: CGFloat, _ yx: CGFloat, width: CGFloat) -> (CGFloat, CGFloat) {
-        var r = rx, y = yx
-        let need = bubbleW + 4
-        if y - r < need {
-            let mid = (r + y) / 2
-            r = mid - need / 2
-            y = mid + need / 2
-        }
-        let lo = bubbleW / 2, hi = width - bubbleW / 2
-        if r < lo { y += lo - r; r = lo }
-        if y > hi { r -= y - hi; y = hi }
-        return (r, y)
-    }
-
-    private func bubble(_ s: String, fill: Color, text: Color) -> some View {
-        Text(s)
-            .font(.caption.weight(.semibold))
-            .monospacedDigit()
-            .foregroundStyle(text)
-            .frame(width: bubbleW, height: bubbleH)
-            .background(fill, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
-            .accessibilityHidden(true)
-    }
-
-    private func handle(_ name: String, value: Double, x: CGFloat, width w: CGFloat, set: @escaping (Double) -> Void) -> some View {
-        Circle()
-            .fill(.white)
-            .shadow(color: .black.opacity(0.3), radius: 1.5, y: 0.5)
-            .frame(width: knob, height: knob)
-            .contentShape(Circle().inset(by: -8))
-            .position(x: x, y: bubbleH + 10 + knob / 2)
-            .gesture(DragGesture(minimumDistance: 0, coordinateSpace: .named("alertTrack")).onChanged { g in
-                let v = Double((g.location.x - knob / 2) / max(w, 1)) * 100
-                set((v / step).rounded() * step)
-            })
-            .accessibilityElement()
-            .accessibilityLabel(name)
-            .accessibilityValue("\(Int(value)) percent left")
-            .accessibilityAdjustableAction { d in
-                switch d {
-                case .increment: set(value + step)
-                case .decrement: set(value - step)
-                @unknown default: break
-                }
-            }
-            .help("\(name) at \(Int(value))%")
-    }
+    static let yellowTitle = "Turn yellow at"
+    static let yellowSubtitle = "When an app is getting low"
+    static let redTitle = "Turn red at"
+    static let redSubtitle = "When an app is almost out"
 }
 
 /// The three states in a row (v4 screen 03): Plenty left, Getting low and Almost out, with the
@@ -117,7 +51,7 @@ struct LevelStates: View {
         HStack(spacing: 8) {
             state("Plenty left", "Above \(y)%") { TankMark(size: 30, color: .primary) }
             arrow
-            state("Getting low", "\(y)% to \(r)%") {
+            state("Getting low", "\(y)% or less") {
                 PillView(glyph: store.glyph(store.demoID), symbol: store.symbol(store.demoID),
                          pct: ((store.redAt + store.yellowAt) / 2).rounded(.down), level: .low, scale: 1.45)
             }
@@ -127,6 +61,8 @@ struct LevelStates: View {
                          pct: (store.redAt / 2).rounded(.down), level: .out, scale: 1.45)
             }
         }
+        .animation(Motion.standard, value: store.redAt)
+        .animation(Motion.standard, value: store.yellowAt)
     }
 
     private var arrow: some View {
@@ -141,16 +77,5 @@ struct LevelStates: View {
         }
         .frame(maxWidth: .infinity)
         .accessibilityElement(children: .combine)
-    }
-}
-
-/// "Alert levels" with the slider filling the row (onboarding, Settings).
-struct AlertLevelsRow: View {
-    @ObservedObject var store: Store
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Alert levels").font(.body)
-            AlertRangeSlider(store: store)
-        }
     }
 }

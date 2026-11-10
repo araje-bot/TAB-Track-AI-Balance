@@ -1,7 +1,7 @@
 #!/bin/bash
 # Builds a universal TAB.app (Apple silicon + Intel) and packages it as a drag-to-install DMG.
 #
-#   ./make_dmg.sh                      -> build/TAB-0.2.1.dmg (signed only on this Mac)
+#   ./make_dmg.sh                      -> build/TAB-0.2.2.dmg (signed only on this Mac)
 #
 # For a DMG that opens on any Mac without warnings (needs a paid Apple Developer account):
 #   DEVELOPER_ID="Developer ID Application: Your Name (TEAMID)" NOTARY_PROFILE="tab-notary" ./make_dmg.sh
@@ -15,7 +15,7 @@ exec > >(sed -l "s#$HOME#~#g" | tee build-log.txt) 2>&1
 echo "TAB build $(date)  macOS $(sw_vers -productVersion)  $(uname -m)"
 echo "Developer tools: $(xcode-select -p 2>/dev/null || echo 'not installed')"
 
-VERSION="0.2.1"
+VERSION="0.2.2"
 APP_NAME="TAB"
 BUNDLE_ID="edu.umd.inst474.tab"
 

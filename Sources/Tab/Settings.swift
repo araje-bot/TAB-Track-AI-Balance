@@ -98,9 +98,12 @@ struct SettingsView: View {
                 SettingRow("Usage monitoring", subtitle: "Which limit TAB watches for you") {
                     SegmentedChoice(selection: $store.watch, options: WatchMode.segments, label: "Usage monitoring")
                 }
-                // The two-handle slider fills the row (v4).
-                AlertLevelsRow(store: store)
-                    .padding(.vertical, 6)
+                SettingRow(LevelSlider.yellowTitle, subtitle: LevelSlider.yellowSubtitle) {
+                    LevelSlider(store: store, red: false)
+                }
+                SettingRow(LevelSlider.redTitle, subtitle: LevelSlider.redSubtitle) {
+                    LevelSlider(store: store, red: true)
+                }
                 SettingRow("Show usage when I open a low app", subtitle: "A quick look when you open an app that's running low") {
                     Toggle("Show usage when I open a low app", isOn: $store.headsUpOnOpen).labelsHidden().toggleStyle(.switch).controlSize(.regular)
                 }

@@ -753,7 +753,7 @@ struct ConnectSheet: View {
     }
 }
 
-/// v4 step 5: the three states with the chosen levels, the two-handle "Alert levels" slider
+/// v4 step 5: the three states with the chosen levels, then "Turn yellow at" and "Turn red at"
 /// right under them in the same card, then the other settings in their own card.
 private struct NudgesStep: View {
     @ObservedObject var store: Store
@@ -765,10 +765,13 @@ private struct NudgesStep: View {
                     LevelStates(store: store)
                         .padding(.vertical, 12)
                     Divider().padding(.horizontal, 6)
-                    AlertLevelsRow(store: store)
-                        .padding(.horizontal, 12)
-                        .padding(.top, 12)
-                        .padding(.bottom, 10)
+                    settingRow(LevelSlider.yellowTitle, subtitle: LevelSlider.yellowSubtitle) {
+                        LevelSlider(store: store, red: false)
+                    }
+                    Divider().padding(.horizontal, 6)
+                    settingRow(LevelSlider.redTitle, subtitle: LevelSlider.redSubtitle) {
+                        LevelSlider(store: store, red: true)
+                    }
                 }
             }
             // The rows bring their own 10pt form inset, so the card needs less padding of its own.
