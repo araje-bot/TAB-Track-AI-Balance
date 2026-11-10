@@ -66,14 +66,14 @@ struct LevelStates: View {
     }
 
     private var arrow: some View {
-        Image(systemName: "arrow.right").font(.body).foregroundStyle(.secondary).accessibilityHidden(true)
+        Image(systemName: "arrow.right").font(.body).foregroundStyle(Palette.subtitle).accessibilityHidden(true)
     }
 
     private func state<V: View>(_ label: String, _ detail: String, @ViewBuilder _ v: () -> V) -> some View {
         VStack(spacing: 6) {
             v().frame(height: 34)
             Text(label).font(.headline)
-            Text(detail).font(.caption).foregroundStyle(.secondary).monospacedDigit()
+            Text(detail).font(.caption).foregroundStyle(Palette.subtitle).monospacedDigit()
         }
         .frame(maxWidth: .infinity)
         .accessibilityElement(children: .combine)

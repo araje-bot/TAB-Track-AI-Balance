@@ -54,7 +54,7 @@ struct SettingsView: View {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("TAB only reads what's left").font(.headline)
                         Text("It never sees your prompts or work. Each sign-in stays on this Mac and only talks to its own app.")
-                            .font(.subheadline).foregroundStyle(.secondary)
+                            .font(.subheadline).foregroundStyle(Palette.subtitle)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                 }
@@ -68,7 +68,7 @@ struct SettingsView: View {
                         VStack(alignment: .leading, spacing: 2) {
                             Text("TAB's menu bar icon is hidden").font(.headline)
                             Text("Hold ⌘ and drag it to the right end of the menu bar.")
-                                .font(.callout).foregroundStyle(.secondary)
+                                .font(.callout).foregroundStyle(Palette.subtitle)
                         }
                     } icon: {
                         Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
@@ -81,7 +81,7 @@ struct SettingsView: View {
                 let apps = store.settingsApps
                 if apps.isEmpty {
                     Text("No AI apps found yet. Install one, or add one you use in a browser.")
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Palette.subtitle)
                 }
                 ForEach(apps) { app in appRow(app) }
             } header: {
@@ -157,7 +157,7 @@ struct SettingsView: View {
             }
 
             Section {
-                // Both buttons sit together on the right, 10pt apart like other button pairs (AK).
+                // Both buttons sit together in the middle of the section, 10pt apart (AK).
                 HStack(spacing: 10) {
                     Spacer()
                     Button {
@@ -169,6 +169,7 @@ struct SettingsView: View {
                     .help("For support. It holds no sign-ins, prompts or work.")
                     // Red text like Remove (AK): deeper in Light Mode, lighter in Dark Mode, both readable.
                     Button { NSApp.terminate(nil) } label: { ButtonText("Quit TAB").foregroundStyle(Palette.redText) }.secondaryButton()
+                    Spacer()
                 }
                 HStack {
                     Spacer()
@@ -266,11 +267,14 @@ struct SettingsView: View {
     private func refresh(_ app: AIApp) { Task { await store.syncNow(app.id) } }
     private func remove(_ app: AIApp) { withAnimation { store.disconnect(app.id) } }
 
-    /// "2 accounts · updated 2 min ago" in green when connected, a problem in amber, or
-    /// "Not connected" (v4).
+    /// "Connected" or "2 accounts" in a brighter gray (AK: less color), anything after it, like
+    /// " · Just now", in the subtitle gray. A problem or "Not connected" is all subtitle gray.
     private func detailText(_ app: AIApp) -> Text {
-        guard store.connected.contains(app.id) else { return Text("Not connected").foregroundColor(.secondary) }
-        if let e = store.errors[app.id] { return Text(e).foregroundColor(.secondary) }
-        return Text(store.accountsLine(app.id)).foregroundColor(Palette.connectedText)
+        guard store.connected.contains(app.id) else { return Text("Not connected").foregroundColor(Palette.subtitle) }
+        if let e = store.errors[app.id] { return Text(e).foregroundColor(Palette.subtitle) }
+        let line = store.accountsLine(app.id)
+        let head = line.components(separatedBy: " · ").first ?? line
+        return connectedLabel(head)
+            + Text(String(line.dropFirst(head.count))).foregroundColor(Palette.subtitle)
     }
 }

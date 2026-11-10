@@ -67,7 +67,7 @@ struct OnboardingView: View {
                     Spacer()
                     if step == Self.appsStep { FindAppsButton(store: store) }
                 }
-                Text(header.1).font(TextStyle.subtitle).foregroundStyle(.secondary)
+                Text(header.1).font(TextStyle.subtitle).foregroundStyle(Palette.subtitle)
             }
             .frame(height: 64, alignment: .top)
             .padding(.top, 60)
@@ -140,7 +140,7 @@ private struct WelcomeStep: View {
         HStack(alignment: .center, spacing: 40) {
             VStack(spacing: 14) {
                 AppLogo(size: 120, flowing: true)
-                Text("Track AI Balance").font(.headline).foregroundStyle(.secondary)
+                Text("Track AI Balance").font(.headline).foregroundStyle(Palette.subtitle)
             }
             .frame(width: 280)
             // Three separate cards, like the steps on "How TAB works" (AK), each with a hairline border.
@@ -166,7 +166,7 @@ private struct WelcomeStep: View {
                 // Same sizes as the step text on "How TAB works": body text for the line (AK).
                 VStack(alignment: .leading, spacing: 4) {
                     Text(title).font(.headline).foregroundStyle(.primary)
-                    Text(detail).font(.body).foregroundStyle(.secondary)
+                    Text(detail).font(.body).foregroundStyle(Palette.subtitle)
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
@@ -202,7 +202,7 @@ private struct HowStep: View {
             card(2, "TAB checks how much each app has left") {
                 HStack(spacing: 10) {
                     LiquidTile(pct: 46, level: .ok, glyph: store.glyph(store.demoID), symbol: store.symbol(store.demoID), size: 48)
-                    Image(systemName: "arrow.right").foregroundStyle(.secondary)
+                    Image(systemName: "arrow.right").foregroundStyle(Palette.subtitle)
                     Text("46%").font(.title2.bold()).foregroundStyle(.primary)
                 }
             }
@@ -344,7 +344,7 @@ struct IconStoryDemo: View {
                 if k == 2 { PillView(glyph: store.glyph(store.demoID), symbol: store.symbol(store.demoID), pct: 8, level: .out, scale: 1.4) }
             }
             .frame(height: 30)
-            Text(["All good", "Getting low", "Almost out"][k]).font(.callout).foregroundStyle(.secondary)
+            Text(["All good", "Getting low", "Almost out"][k]).font(.callout).foregroundStyle(Palette.subtitle)
         }
     }
 }
@@ -360,16 +360,17 @@ private struct CountsStep: View {
                 card(.weekly, "calendar", "Resets every 7 days", "Your total for the week.")
                 card(.monthly, "calendar", "Resets with your plan", "Your plan's total for the month.")
             }
-            Card(padding: 12) {
-                Label {
-                    Text("Not every app has all three. Cursor only has a monthly limit, so it only shows under Monthly.")
-                        .font(.callout).foregroundStyle(.primary)
-                        .fixedSize(horizontal: false, vertical: true)
-                } icon: {
-                    Image(systemName: "lightbulb.fill").foregroundStyle(.secondary)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
+            // A plain centered note under the cards, no box around it (AK, 2026-11-09).
+            Label {
+                Text("Not every app has all three. Cursor only has a monthly limit.")
+                    .font(.callout).foregroundStyle(Palette.subtitle)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+            } icon: {
+                Image(systemName: "lightbulb.fill").foregroundStyle(Palette.subtitle)
             }
+            .frame(maxWidth: .infinity, alignment: .center)
+            .padding(.top, 4)
         }
     }
 
@@ -389,13 +390,15 @@ private struct CountsStep: View {
             VStack(spacing: 0) {
                 VStack(spacing: 8) {
                     Label(kind.rawValue, systemImage: symbol).font(.title2.weight(.semibold))
-                    Text(resets).font(.callout).foregroundStyle(.secondary)
                     HStack(spacing: 8) {
                         ForEach(apps(kind), id: \.self) { id in
                             AppTile(icon: store.icon(id), symbol: store.symbol(id), size: 30)
                         }
                     }
-                    .padding(.top, 4)
+                    .padding(.top, 6)
+                    // Under the logos, smaller, lighter and dimmer than the title (AK, 2026-11-09).
+                    Text(resets).font(.subheadline.weight(.light)).foregroundStyle(Palette.faint)
+                        .padding(.top, 2)
                 }
                 .frame(maxWidth: .infinity)
                 .frame(height: 180)
@@ -481,7 +484,7 @@ struct GroupTitle: View {
     let text: String
     init(_ text: String) { self.text = text }
     var body: some View {
-        Text(text).font(.subheadline.weight(.semibold)).foregroundStyle(.secondary)
+        Text(text).font(.subheadline.weight(.semibold)).foregroundStyle(Palette.subtitle)
             .accessibilityAddTraits(.isHeader)
     }
 }
@@ -500,7 +503,7 @@ struct AppCard: View {
                 AppTile(icon: store.icon(app.id), symbol: store.symbol(app.id), size: 36)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(app.name).font(.headline).lineLimit(1)
-                    statusText(subtitle).font(.subheadline).foregroundStyle(.secondary).lineLimit(1).truncationMode(.tail)
+                    statusText(subtitle).font(.subheadline).foregroundStyle(Palette.subtitle).lineLimit(1).truncationMode(.tail)
                 }
                 .layoutPriority(1)   // the name and status keep their room; the button never squeezes them
                 Spacer(minLength: 4)
@@ -587,7 +590,7 @@ struct ConnectSheet: View {
             // so its box is that much larger than TAB's edge-to-edge logo.
             HStack(spacing: 12) {
                 AppLogo(size: 52)
-                Image(systemName: "plus").font(.headline).foregroundStyle(.secondary)
+                Image(systemName: "plus").font(.headline).foregroundStyle(Palette.subtitle)
                 AppTile(icon: store.icon(app.id), symbol: store.symbol(app.id), size: 52 / 0.82)
                     .frame(width: 52, height: 52)
             }
@@ -662,9 +665,9 @@ struct ConnectSheet: View {
                 note("key.fill", .secondary, "macOS will ask once",
                      "Choose Always Allow so TAB can check \(app.name) without asking again.")
             } else if !app.supported {
-                Text("Nothing to sign in to. TAB can't read \(app.name)'s usage yet.").font(TextStyle.caption).foregroundStyle(.secondary)
+                Text("Nothing to sign in to. TAB can't read \(app.name)'s usage yet.").font(TextStyle.caption).foregroundStyle(Palette.subtitle)
             } else {
-                Text("Uses the \(app.name) account you're already signed in to").font(TextStyle.caption).foregroundStyle(.secondary)
+                Text("Uses the \(app.name) account you're already signed in to").font(TextStyle.caption).foregroundStyle(Palette.subtitle)
             }
         case .connecting where needsGitHub && store.githubCode != nil:
             githubCodeCard(store.githubCode!)
@@ -676,13 +679,13 @@ struct ConnectSheet: View {
                         Text(needsCursor ? "Waiting for you on cursor.com" : needsGitHub ? "Getting a code from GitHub"
                              : (needsGoogle || isWeb) ? "Waiting for you to sign in" : "Connecting").font(.headline)
                         if needsCursor {
-                            Text("Click Approve there. This updates on its own.").font(TextStyle.caption).foregroundStyle(.secondary)
+                            Text("Click Approve there. This updates on its own.").font(TextStyle.caption).foregroundStyle(Palette.subtitle)
                         } else if needsGoogle {
-                            Text("Sign in in the Google window. It closes on its own.").font(TextStyle.caption).foregroundStyle(.secondary)
+                            Text("Sign in in the Google window. It closes on its own.").font(TextStyle.caption).foregroundStyle(Palette.subtitle)
                         } else if isWeb {
-                            Text("Sign in in the \(app.name) window. It closes on its own.").font(TextStyle.caption).foregroundStyle(.secondary)
+                            Text("Sign in in the \(app.name) window. It closes on its own.").font(TextStyle.caption).foregroundStyle(Palette.subtitle)
                         } else if macMayAsk {
-                            Text("If macOS asks, choose Always Allow.").font(TextStyle.caption).foregroundStyle(.secondary)
+                            Text("If macOS asks, choose Always Allow.").font(TextStyle.caption).foregroundStyle(Palette.subtitle)
                         }
                     }
                     Spacer(minLength: 0)
@@ -724,7 +727,7 @@ struct ConnectSheet: View {
                     .accessibilityLabel("Your code is \(code.code.map(String.init).joined(separator: " "))")
                 HStack(spacing: 6) {
                     ActivityRing()
-                    Text("Copied. Paste it on github.com and approve.").font(TextStyle.caption).foregroundStyle(.secondary)
+                    Text("Copied. Paste it on github.com and approve.").font(TextStyle.caption).foregroundStyle(Palette.subtitle)
                 }
                 Button { NSWorkspace.shared.open(code.url) } label: { ButtonText("Open GitHub") }
                     .secondaryButton()
@@ -742,7 +745,7 @@ struct ConnectSheet: View {
             Label {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(title).font(.headline).foregroundStyle(.primary)
-                    Text(text).font(TextStyle.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                    Text(text).font(TextStyle.caption).foregroundStyle(Palette.subtitle).fixedSize(horizontal: false, vertical: true)
                 }
             } icon: {
                 Image(systemName: symbol).font(.title3).foregroundStyle(color).frame(width: 24)

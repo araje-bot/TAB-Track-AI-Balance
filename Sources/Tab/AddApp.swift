@@ -18,7 +18,7 @@ struct AddAppList: View {
             SearchField(text: $query, prompt: "Search AI apps")
             if mac.isEmpty && web.isEmpty {
                 Text(query.isEmpty ? "Every app TAB knows is connected." : "No apps match \u{201C}\(query)\u{201D}.")
-                    .font(.callout).foregroundStyle(.secondary)
+                    .font(.callout).foregroundStyle(Palette.subtitle)
                     .frame(maxWidth: .infinity, alignment: .center)
                     .padding(.vertical, 12)
             }
@@ -30,7 +30,7 @@ struct AddAppList: View {
                     GroupTitle("On the web")
                     // Not a button: hovering shows what signing in on the web means.
                     Image(systemName: "info.circle")
-                        .font(.caption).foregroundStyle(.secondary)
+                        .font(.caption).foregroundStyle(Palette.subtitle)
                         .help(Self.webInfo)
                         .accessibilityLabel(Self.webInfo)
                 }, web)
@@ -66,12 +66,12 @@ struct SearchField: View {
     let prompt: String
     var body: some View {
         HStack(spacing: 6) {
-            Image(systemName: "magnifyingglass").font(.callout).foregroundStyle(.secondary)
+            Image(systemName: "magnifyingglass").font(.callout).foregroundStyle(Palette.subtitle)
             TextField(prompt, text: $text)
                 .textFieldStyle(.plain)
                 .accessibilityLabel(prompt)
             if !text.isEmpty {
-                Button { text = "" } label: { Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary) }
+                Button { text = "" } label: { Image(systemName: "xmark.circle.fill").foregroundStyle(Palette.subtitle) }
                     .buttonStyle(.plain)
                     .help("Clear")
                     .accessibilityLabel("Clear search")

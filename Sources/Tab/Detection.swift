@@ -23,8 +23,11 @@ enum Catalog {
                      bundleIDs: ["com.anthropic.claudefordesktop"], providerID: "claude",
                      source: "Claude sign-in",
                      hint: "Sign in to Claude first", symbol: "asterisk"),
-        CatalogEntry(id: "codex", name: "Codex", category: "Code", appNames: ["Codex"],
-                     bundleIDs: ["com.openai.codex"], providerID: "codex",
+        // ChatGPT and Codex share one plan and one set of limits, so they are one app named
+        // ChatGPT (AK, 2026-11-09). The id stays "codex", so existing connections carry over.
+        // TAB reads the limits through Codex's sign-in. The ChatGPT app's icon comes first.
+        CatalogEntry(id: "codex", name: "ChatGPT", category: "Chat & code", appNames: ["ChatGPT", "Codex"],
+                     bundleIDs: ["com.openai.chat", "com.openai.codex"], providerID: "codex",
                      source: "Codex sign-in",
                      hint: "Sign in to Codex first", symbol: "chevron.left.forwardslash.chevron.right"),
         CatalogEntry(id: "cursor", name: "Cursor", category: "Code", appNames: ["Cursor"],
@@ -78,10 +81,11 @@ enum Catalog {
         }
     }
 
-    /// Web apps, as apps. The featured four come first, in the Figma order.
+    /// Web apps, as apps. The featured four come first, in the Figma order. ChatGPT on the web
+    /// is left out: it is the same app as ChatGPT on this Mac, so it shows once (AK).
     static var webApps: [AIApp] {
         let order = WebSite.featured + WebSite.all.map(\.id).filter { !WebSite.featured.contains($0) }
-        return order.compactMap(webApp)
+        return order.filter { !WebSite.sameAsMacApp.keys.contains($0) }.compactMap(webApp)
     }
 
     static func webApp(_ id: String) -> AIApp? {

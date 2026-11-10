@@ -157,14 +157,14 @@ struct ShortcutEditor: View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Make your own shortcut").font(.headline)
             Text("Hold \u{2318}, \u{2325} or \u{2303} and press a letter, a number or Space. Your keys show up in the box.")
-                .font(.callout).foregroundStyle(.secondary)
+                .font(.callout).foregroundStyle(Palette.subtitle)
                 .fixedSize(horizontal: false, vertical: true)
             ShortcutField(store: store)
             Group {
                 if let p = store.shortcutProblem {
                     Text(p.message).foregroundStyle(Palette.amberText)
                 } else if let c = store.pendingShortcut {
-                    Text("Click Save to use \(c.glyphs).").foregroundStyle(.secondary)
+                    Text("Click Save to use \(c.glyphs).").foregroundStyle(Palette.subtitle)
                 } else {
                     Text("Esc cancels.").foregroundStyle(.tertiary)
                 }
@@ -193,7 +193,7 @@ private struct ShortcutField: View {
     var body: some View {
         let shape = RoundedRectangle(cornerRadius: Radius.field, style: .continuous)
         HStack(spacing: 10) {
-            Image(systemName: "keyboard").foregroundStyle(.secondary)
+            Image(systemName: "keyboard").foregroundStyle(Palette.subtitle)
             if let c = store.pendingShortcut {
                 Text(c.glyphs).font(.title3.weight(.semibold)).foregroundStyle(.primary)
             } else {

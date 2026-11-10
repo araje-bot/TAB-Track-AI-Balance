@@ -24,7 +24,20 @@ enum Palette {
     static let neutralBlue = Color.accentColor
     static let amberText = Pill.amberText
     static let redText = Pill.redText
+    /// "Connected" (AK, 2026-11-09: less color). A brighter gray than other subtitles, so it still
+    /// stands out, but quieter than titles.
     static let connectedText = Pill.connectedText
+    /// Every subtitle (AK, 2026-11-09): a touch darker than the system's secondary gray in Dark
+    /// Mode, still 4.5:1 or more on TAB's cards.
+    static let subtitle = Pill.subtitle
+    /// Connect buttons (AK, 2026-11-09): white with a dark plug in Dark Mode, near black with a
+    /// white plug in Light Mode. Blue stays for the one main button.
+    /// Small side notes, a step dimmer than subtitles (AK): "Resets every 7 days".
+    static let faint = Pill.faint
+    /// The message in first-open tips: brighter than subtitles so it reads well on the tip card.
+    static let tipText = Pill.tipText
+    static let connectFill = Pill.connectFill
+    static let connectGlyph = Pill.connectGlyph
     /// First-open tips (v4): a solid card a step above the popover, white in Light Mode.
     static let tipFill = Pill.tipFill
 
@@ -69,10 +82,22 @@ enum Pill {
     static let amberText = adaptive(light: 0x845F00, dark: 0xFFB800)
     static let redText = adaptive(light: 0xB3282E, dark: 0xFF7B7F)
     static let greenText = adaptive(light: 0x1B7536, dark: 0x5EDB82)
-    /// "Connected" (AK): system green in Dark Mode, where it reads well, and the same deeper
-    /// green as `greenText` in Light Mode, where system green is too pale on a card (about 2:1).
-    static let connectedText = adaptive(light: 0x1B7536, dark: 0x30D158)
+    /// "Connected" (AK, 2026-11-09): a bright gray, between titles and subtitles. It was green.
+    static let connectedText = gray(light: 0.76, dark: 0.80)
+    /// Subtitles: white at 50% in Dark Mode (the system uses 55%), black at 50% in Light Mode.
+    static let subtitle = gray(light: 0.50, dark: 0.50)
+    static let faint = gray(light: 0.45, dark: 0.42)
+    static let tipText = gray(light: 0.68, dark: 0.72)
+    static let connectFill = adaptive(light: 0x1D1D1F, dark: 0xFFFFFF)
+    static let connectGlyph = adaptive(light: 0xFFFFFF, dark: 0x1C1C1E)
     static let tipFill = adaptive(light: 0xFFFFFF, dark: 0x3A3A3C)
+
+    /// Black (Light Mode) or white (Dark Mode) at the given strength, like the system label colors.
+    private static func gray(light: CGFloat, dark: CGFloat) -> Color {
+        Color(nsColor: NSColor(name: nil) { a in
+            a.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua ? NSColor(white: 1, alpha: dark) : NSColor(white: 0, alpha: light)
+        })
+    }
 
     private static func adaptive(light: UInt32, dark: UInt32) -> Color {
         func ns(_ h: UInt32) -> NSColor {

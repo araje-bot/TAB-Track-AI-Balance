@@ -334,7 +334,7 @@ enum SelfTest {
         green.snapshots["codex"] = ProviderSnapshot(limits: Store.useItLimits("codex"), fetchedAt: now)
         let greenBefore = green.pillState
         let tipBefore = green.summary
-        check("The tip reads as a suggestion with a Got it button", tipBefore.isTip && tipBefore.text.hasPrefix("Codex has 85% left") && tipBefore.symbol == "lightbulb.fill")
+        check("The tip reads as a suggestion with a Got it button", tipBefore.isTip && tipBefore.text.hasPrefix("ChatGPT has 85% left") && tipBefore.symbol == "lightbulb.fill")
         green.showTipTab()
         check("Clicking the green pill opens its tab (weekly)", green.mode == .weekly)
         green.markUseItSeen()
@@ -417,13 +417,13 @@ enum SelfTest {
               Catalog.all.filter { $0.providerID == nil }.allSatisfy { $0.markers.isEmpty }
               && !Catalog.all.contains { ["lovable", "canva", "capcut"].contains($0.id) })
         // On the web (v4): each app once, with a real logo and its domain, never also a Mac app.
-        // Only ChatGPT has a reader, and only while web sign-in is on.
+        // ChatGPT is one app with Codex, so no web app connects for now.
         let webIDs = Catalog.webApps.map(\.id)
-        check("Web apps are listed once, with a logo and domain, and only ChatGPT can connect",
+        check("Web apps are listed once, with a logo and domain, and ChatGPT is not repeated there",
               Set(webIDs).count == webIDs.count && Array(webIDs.prefix(4)) == WebSite.featured
               && Catalog.webApps.allSatisfy { BrandLogos.logo($0.id) != nil && $0.domain != nil }
               && Catalog.all.allSatisfy { !webIDs.contains($0.id) }
-              && Catalog.webApps.filter(\.canConnect).map(\.id) == (WebAuth.enabled ? ["chatgpt"] : [])
+              && Catalog.webApps.filter(\.canConnect).isEmpty && !webIDs.contains("chatgpt")
               && !webIDs.contains("sora") && !webIDs.contains("midjourney"))
         let fb = Feedback.issueURL("  Pill stays yellow + won't clear\nafter reset  ")?.absoluteString ?? ""
         check("Feedback opens a filled-in GitHub issue on TAB's repo, never an empty one",
@@ -440,7 +440,10 @@ enum SelfTest {
         check("Feedback goes to the team's form with no account; reply email is optional and checked",
               realFormReady && formOK && Feedback.replyEmail(" a@b.co ") == "a@b.co" && Feedback.replyEmail("not an email") == nil
               && !Feedback.Config(formID: "x/../evil", message: "entry.1", email: "entry.2", version: "entry.3").ready)
-        check("ChatGPT is never detected as a Mac app", !Detector.scan().contains { $0.name.localizedCaseInsensitiveContains("ChatGPT") })
+        check("ChatGPT shows once, as the app that reads Codex's limits",
+              Detector.scan().filter { $0.name.localizedCaseInsensitiveContains("ChatGPT") }.allSatisfy { $0.id == "codex" }
+              && Catalog.all.filter { $0.name == "ChatGPT" }.map(\.id) == ["codex"]
+              && !Catalog.all.contains { $0.name == "Codex" })
         // Custom shortcut rules (AK): one of ⌘, ⌥ or ⌃ plus one letter, number or Space.
         func try_(_ m: [ShortcutChoice.Modifier], _ k: String, _ c: Int) -> ShortcutProblem? {
             if case .failure(let p) = ShortcutChoice.check(modifiers: m, key: k, keyCode: UInt16(c)) { return p }
@@ -719,7 +722,7 @@ enum SelfTest {
         }
         let v4multi = Store.preview(apps: [:])
         v4multi.addSampleAccounts("claude", first: 32, second: 81)
-        v4multi.addSampleAccounts("chatgpt", first: 88, second: 64)
+        v4multi.addSampleAccounts("codex", first: 88, second: 64)
         shot(PopoverView(store: v4multi, openSettings: {}, openConnect: { _, _ in }), NSSize(width: 340, height: 360), "v4-10-accounts")
         shot(DetailView(store: v4multi, id: "claude", back: {}), NSSize(width: 340, height: 340), "v4-11-account-detail")
         let v4settings = Store.preview(apps: ["codex": 80])

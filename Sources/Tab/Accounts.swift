@@ -258,13 +258,17 @@ extension Store {
         return others.max { $0.1 < $1.1 }.map { (email: $0.0, pct: $0.1) }
     }
 
-    /// The line under an app in Settings (v4): "2 accounts · updated 2 min ago", or "Connected · …".
+    /// The line under an app in Settings: "Connected" or "2 accounts". A time shows only when it
+    /// tells you something (AK): "Just now" for a few seconds after you click Sync, or how old
+    /// the numbers are once they are over 15 minutes old.
     func accountsLine(_ id: String) -> String {
         let n = accountList(id).count
         let head = n > 1 ? "\(n) accounts" : "Connected"
-        if updating.contains(id) || loading.contains(id) { return head + " · syncing…" }
+        if updating.contains(id) || loading.contains(id) { return head + " · Syncing…" }
         guard let s = snapshots[id] else { return head }
-        return head + " · updated " + Format.ago(s.fetchedAt)
+        if justUpdated.contains(id) { return head + " · Just now" }
+        if isStale(id) { return head + " · Updated " + Format.ago(s.fetchedAt) }
+        return head
     }
 }
 

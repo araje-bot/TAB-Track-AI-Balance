@@ -129,10 +129,15 @@ struct CaptureButtonStyle: ButtonStyle {
         let configuration: Configuration
         let prominent: Bool
         let circle: Bool
+        /// The button's own tint, so a white Connect button is white in pictures too.
+        static var tintFill: AnyShapeStyle {
+            if #available(macOS 14.0, *) { return AnyShapeStyle(.tint) }
+            return AnyShapeStyle(Color.accentColor)
+        }
         @Environment(\.isEnabled) private var enabled
 
         var body: some View {
-            let fill: AnyShapeStyle = prominent ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(Color.primary.opacity(0.1))
+            let fill: AnyShapeStyle = prominent ? Self.tintFill : AnyShapeStyle(Color.primary.opacity(0.1))
             configuration.label
                 .font(.body)
                 .foregroundStyle(prominent ? AnyShapeStyle(Color.white) : AnyShapeStyle(Color.primary))
@@ -182,7 +187,7 @@ struct SettingRow<Control: View>: View {
         HStack(alignment: .center, spacing: 12) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(title).lineLimit(1)
-                Text(subtitle).font(.subheadline).foregroundStyle(.secondary).lineLimit(1)
+                Text(subtitle).font(.subheadline).foregroundStyle(Palette.subtitle).lineLimit(1)
             }
             Spacer(minLength: 12)
             control

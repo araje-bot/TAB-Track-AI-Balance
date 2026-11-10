@@ -118,7 +118,7 @@ struct AppIconView: View {
         } else {
             Image(systemName: symbol)
                 .font(.system(size: size * 0.6, weight: .semibold))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Palette.subtitle)
                 .frame(width: size, height: size)
         }
     }
@@ -473,23 +473,31 @@ struct ConnectButton: View {
                 Text("Connect \(name)")
             } icon: {
                 PlugGlyph()
-                    .stroke(Color.white, style: StrokeStyle(lineWidth: 1.3, lineCap: .round, lineJoin: .round))
+                    .stroke(Palette.connectGlyph, style: StrokeStyle(lineWidth: 1.3, lineCap: .round, lineJoin: .round))
                     .frame(width: 15, height: 15)
                     .rotationEffect(.degrees(45))
             }
         }
+        // White, not blue (AK, 2026-11-09): blue is kept for the one main button in a view.
+        // In Light Mode a white circle would vanish on a light card, so it flips to near black.
         .iconButton(prominent: true)
-        .tint(Palette.accent)
+        .tint(Palette.connectFill)
         .help("Connect \(name)")
     }
 }
 
-/// A row subtitle where a leading "Connected" shows in green (AK) and the rest, like
-/// " · 2 min ago", keeps the row's secondary color. The green is deeper in Light Mode so it reads.
+/// A row subtitle where a leading "Connected" shows in a brighter gray with a small check before
+/// it (AK), and the rest, like " · Just now", keeps the subtitle gray.
 func statusText(_ s: String) -> Text {
     let word = "Connected"
     guard s.hasPrefix(word) else { return Text(s) }
-    return Text(word).foregroundColor(Palette.connectedText) + Text(String(s.dropFirst(word.count)))
+    return connectedLabel(word) + Text(String(s.dropFirst(word.count)))
+}
+
+/// "Connected" (or "2 accounts") with a small check before it, both in the brighter gray (AK).
+func connectedLabel(_ word: String) -> Text {
+    (Text(Image(systemName: "checkmark.circle.fill")).font(.caption2) + Text(" " + word))
+        .foregroundColor(Palette.connectedText)
 }
 
 /// The trailing control of a connected app's row: a More button, as in System Settings' Wi-Fi list
@@ -592,9 +600,9 @@ struct ShortcutHint: View {
         let shortcut = keys.dropLast().reduce(Text("")) { text, key in
             text + Text(Image(systemName: Self.symbol(key))) + Text(" + ")
         } + Text(keys.last ?? "")
-        (Text(before.isEmpty ? "" : before + " ") + shortcut.fontWeight(.semibold).foregroundColor(.primary) + Text(" " + after))
+        (Text(before.isEmpty ? "" : before + " ") + shortcut.fontWeight(.semibold).foregroundColor(.primary) + Text(after.isEmpty ? "" : " " + after))
             .font(.callout)
-            .foregroundStyle(.secondary)
+            .foregroundStyle(Palette.subtitle)
             .lineLimit(1)
             .fixedSize()
             .accessibilityLabel("\(before.isEmpty ? "" : before + " ")\(store.activeShortcut.spoken) \(after)")
@@ -646,9 +654,9 @@ struct LimitValue: View {
     var body: some View {
         HStack(spacing: 4) {
             LimitIcon(kind: limit.kind, size: size - 2)
-                .foregroundColor(.secondary)
+                .foregroundColor(Palette.subtitle)
             if limit.isReset {
-                Text("Reset").font(.system(size: size - 1, weight: .medium)).foregroundColor(.secondary)
+                Text("Reset").font(.system(size: size - 1, weight: .medium)).foregroundColor(Palette.subtitle)
             } else {
                 Text("\(limit.isEstimate ? "~" : "")\(Int(limit.percentLeft.rounded()))%")
                     .font(.system(size: size, weight: .semibold))

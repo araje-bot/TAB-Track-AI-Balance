@@ -375,7 +375,7 @@ struct QuickView: View {
                         let stale = store.isStale(id)
                         VStack(spacing: 6) {
                             LiquidTile(pct: pct, level: stale ? .ok : store.level(pct), glyph: store.glyph(id), symbol: store.symbol(id), size: 64, stale: stale && store.snapshots[id] != nil)
-                            Text(store.name(id)).font(.callout.weight(.medium)).foregroundStyle(.secondary).lineLimit(1).truncationMode(.tail)
+                            Text(store.name(id)).font(.callout.weight(.medium)).foregroundStyle(Palette.subtitle).lineLimit(1).truncationMode(.tail)
                             ForEach(store.visibleLimits(id)) { l in
                                 LimitValue(limit: l, level: stale ? .ok : store.level(l.percentLeft), size: 15)
                             }
@@ -543,7 +543,7 @@ struct IntroCallout: View {
                 Text("TAB lives here").font(.title3.weight(.semibold)).foregroundStyle(.primary)
             }
             Text("Click it to see your usage. It turns yellow or red when an app runs low.")
-                .font(TextStyle.caption).foregroundStyle(.secondary)
+                .font(TextStyle.caption).foregroundStyle(Palette.subtitle)
                 .fixedSize(horizontal: false, vertical: true)
             HStack(spacing: 8) {
                 ShortcutHint(after: "to see it anytime")
@@ -579,7 +579,7 @@ struct LimitTag: View {
             Text(text).lineLimit(1)
         }
         .font(.subheadline)
-        .foregroundStyle(.secondary)
+        .foregroundStyle(Palette.subtitle)
         .fixedSize()
     }
 }
@@ -593,7 +593,7 @@ struct HoverTip: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             if store.connected.isEmpty {
-                Text("Connect an AI app to start").font(.callout.weight(.medium)).foregroundStyle(.secondary)
+                Text("Connect an AI app to start").font(.callout.weight(.medium)).foregroundStyle(Palette.subtitle)
             } else {
                 // A grid, so every column lines up from row to row: logo and name on the left,
                 // then the limit tag and the % together on the right (AK). Tags start at one left

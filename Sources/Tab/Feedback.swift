@@ -89,11 +89,11 @@ enum Feedback {
     }
 }
 
-/// The "Any issues? Let us know" link, a plain text button in the accent color (HIG).
+/// The "Feedback for us" link at the bottom of Settings, the same words as in the popover (AK).
 struct FeedbackLink: View {
     var action: () -> Void
     var body: some View {
-        Button("Any issues? Let us know", action: action)
+        Button("Feedback for us", action: action)
             .buttonStyle(.link)
             .font(.callout)
             .help("Send feedback to the TAB team")
@@ -120,7 +120,7 @@ struct FeedbackForm: View {
                 Image(systemName: "checkmark.circle.fill").font(.largeTitle).foregroundStyle(Palette.green)
                 Text("Thanks! The TAB team got your note.").font(.headline)
                 Text(Feedback.replyEmail(email) != nil ? "We'll reply by email if we need more." : "We read every one.")
-                    .font(.callout).foregroundStyle(.secondary)
+                    .font(.callout).foregroundStyle(Palette.subtitle)
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 24)
@@ -167,10 +167,10 @@ struct FeedbackForm: View {
                         .foregroundStyle(Palette.amberText)
                 } else if direct {
                     Text("Sent to the TAB team through Google Forms, with your TAB and macOS versions. Leave out anything private.")
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Palette.subtitle)
                 } else {
                     Text("This opens a public issue on TAB's GitHub page, so you can check it before sending. Leave out anything private.")
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Palette.subtitle)
                 }
             }
             .font(.callout)

@@ -1,10 +1,10 @@
 #!/bin/bash
 # Installs TAB (Track AI Balance) on a Mac.
 #
-#   curl -fsSL https://raw.githubusercontent.com/araje-bot/TAB-Track-AI-Balance/v0.2.2/install.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/araje-bot/TAB-Track-AI-Balance/v0.2.3/install.sh | bash
 #
 # What it does, in order:
-#   1. Downloads one exact build (dist/TAB-0.2.2.zip at the v0.2.2 tag) from GitHub over HTTPS.
+#   1. Downloads one exact build (dist/TAB-0.2.3.zip at the v0.2.3 tag) from GitHub over HTTPS.
 #   2. Checks the file against the SHA-256 fingerprint written below. Anything else is deleted.
 #   3. Unpacks it in a private folder and checks the app's signature and bundle id.
 #   4. Copies TAB.app into /Applications (or ~/Applications), replacing an older TAB, and opens it.
@@ -19,7 +19,7 @@
 #           --no-open   don't open TAB at the end
 set -euo pipefail
 
-readonly VERSION="0.2.2"
+readonly VERSION="0.2.3"
 readonly REPO="araje-bot/TAB-Track-AI-Balance"
 readonly APP_NAME="TAB"
 readonly BUNDLE_ID="edu.umd.inst474.tab"
@@ -29,7 +29,7 @@ readonly OLD_BUNDLE_ID="edu.umd.inst474.tum"
 readonly ZIP_NAME="${APP_NAME}-${VERSION}.zip"
 # The build is kept in the repository at the version's tag, so no separate release page is needed.
 readonly ZIP_URL="https://raw.githubusercontent.com/${REPO}/v${VERSION}/dist/${ZIP_NAME}"
-# The SHA-256 of TAB-0.2.2.zip. make_dmg.sh --update-installer writes it here for each release.
+# The SHA-256 of TAB-0.2.3.zip. make_dmg.sh --update-installer writes it here for each release.
 readonly ZIP_SHA256="ce1054e2d0f665895d79f22b4b45312339c081110a5b7e1f83c4c882f6f6a294"
 
 TMP=""

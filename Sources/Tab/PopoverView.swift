@@ -135,7 +135,7 @@ struct PopoverView: View {
                 VStack(spacing: 6) {
                     Text("No \(store.mode.rawValue.lowercased()) limits").font(.headline)
                     Text("None of your apps has a \(store.mode.rawValue.lowercased()) limit.")
-                        .font(.callout).foregroundStyle(.secondary)
+                        .font(.callout).foregroundStyle(Palette.subtitle)
                 }
                 .frame(maxWidth: .infinity)
                 .frame(height: CGFloat(gridRows) * Self.rowHeight)
@@ -217,7 +217,7 @@ struct PopoverView: View {
         } else if tip == 4, addFrame != .zero {
             let x = 340 - 8 - TipBubble.width
             TipBubble(arrowX: addFrame.midX - x, arrowUp: false, step: 4, content: .init(
-                symbol: "plus.circle", title: "Use AI in a browser?", message: "Add ChatGPT and other web apps, or a second account."),
+                symbol: "plus.circle", title: "Use AI in a browser?", message: "Add Perplexity, ElevenLabs and more, or a second account."),
                       next: finishTips)
                 // The bubble's bottom sits just above Add app.
                 .frame(height: max(addFrame.minY - 4, 0), alignment: .bottom)
@@ -266,20 +266,21 @@ struct TipBubble: View {
                     .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 4) {
                     Text(content.title).font(.headline)
+                    // Body size, light weight and a brighter gray than other subtitles (AK, 2026-11-09).
                     Text(content.message)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                        .font(.body.weight(.light))
+                        .foregroundStyle(Palette.tipText)
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
             HStack(spacing: 8) {
-                Text("\(step) of 4").font(.caption).foregroundStyle(.secondary).monospacedDigit()
+                Text("\(step) of 4").font(.caption).foregroundStyle(Palette.subtitle).monospacedDigit()
                 Spacer(minLength: 8)
                 if let skip, step < 4 {
                     Button("Skip", action: skip)
                         .buttonStyle(.plain)
                         .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Palette.subtitle)
                         .help("Skip the tips")
                 }
                 nextButton
@@ -394,16 +395,16 @@ struct TileCell: View {
                     let n = store.accountList(id).count
                     if n > 1 { CountBadge(n: n).offset(x: 6, y: -3) }
                 }
-            Text(store.name(id)).font(.callout.weight(.medium)).foregroundStyle(.secondary).lineLimit(1)
+            Text(store.name(id)).font(.callout.weight(.medium)).foregroundStyle(Palette.subtitle).lineLimit(1)
             if !store.readsUsage(id) {
-                Text("No data yet").font(.callout).foregroundStyle(.secondary)
+                Text("No data yet").font(.callout).foregroundStyle(Palette.subtitle)
                     .help("TAB can't read \(store.name(id))'s usage yet")
             } else if store.needsApproval.contains(id) {
                 Text("Connect").font(.callout.weight(.semibold)).foregroundStyle(.tint)
                     .help("One more click to finish connecting")
             } else if store.snapshots[id] == nil {
                 if let err = store.errors[id] {
-                    Text("Needs attention").font(.callout.weight(.semibold)).foregroundStyle(.secondary).help(err)
+                    Text("Needs attention").font(.callout.weight(.semibold)).foregroundStyle(Palette.subtitle).help(err)
                 } else {
                     ActivityRing()
                 }
@@ -414,7 +415,7 @@ struct TileCell: View {
                     }
                 }
                 if stale {
-                    Text(store.updatedText(id)).font(.caption).foregroundStyle(.secondary)
+                    Text(store.updatedText(id)).font(.caption).foregroundStyle(Palette.subtitle)
                 }
             }
         }
@@ -483,7 +484,7 @@ struct DetailView: View {
                     VStack(alignment: .leading, spacing: 6) {
                         Text("No usage data yet").font(.headline)
                         Text("TAB can't read \(store.name(id))'s usage yet. Its numbers show here once it does.")
-                            .font(.callout).foregroundStyle(.secondary)
+                            .font(.callout).foregroundStyle(Palette.subtitle)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -493,7 +494,7 @@ struct DetailView: View {
                     VStack(alignment: .leading, spacing: 10) {
                         Text("Finish connecting \(store.name(id))").font(.headline)
                         Text("If macOS asks, choose Always Allow so it won't ask again.")
-                            .font(.callout).foregroundStyle(.secondary)
+                            .font(.callout).foregroundStyle(Palette.subtitle)
                             .fixedSize(horizontal: false, vertical: true)
                         Button { Task { await store.refresh(id, interactive: true) } } label: {
                             ButtonText("Connect").frame(maxWidth: .infinity)
@@ -507,7 +508,7 @@ struct DetailView: View {
                     // Apps with a single plan limit (Cursor is monthly) have no Session or Weekly
                     // to pick, so the tabs make way for a plain label that says which period it is.
                     Label(store.kindName(only) + " limit", systemImage: "calendar")
-                        .font(.headline).foregroundStyle(.secondary)
+                        .font(.headline).foregroundStyle(Palette.subtitle)
                         .frame(maxWidth: .infinity)
                         .frame(height: ControlMetrics.round)
                 } else {
@@ -528,9 +529,9 @@ struct DetailView: View {
                         if store.showsSyncLine(id) {
                         Divider()
                         HStack(alignment: .firstTextBaseline, spacing: 10) {
-                            Image(systemName: "clock.arrow.circlepath").foregroundStyle(.secondary).frame(width: 16)
+                            Image(systemName: "clock.arrow.circlepath").foregroundStyle(Palette.subtitle).frame(width: 16)
                             VStack(alignment: .leading, spacing: 2) {
-                                Text(store.updatedText(id)).font(.callout).foregroundStyle(.secondary)
+                                Text(store.updatedText(id)).font(.callout).foregroundStyle(Palette.subtitle)
                                 // Why the last Sync didn't bring new numbers, so it never fails silently.
                                 if let err = store.errors[id], store.snapshots[id] != nil {
                                     Text(err).font(.callout).foregroundStyle(Palette.amberText)
@@ -585,7 +586,7 @@ struct DetailView: View {
     @ViewBuilder private func accountsView(stale: Bool) -> some View {
         if store.hasOnlyOneLimit(id), let only = store.snapshots[id]?.limits.first {
             Label(store.kindName(only) + " limit", systemImage: "calendar")
-                .font(.headline).foregroundStyle(.secondary)
+                .font(.headline).foregroundStyle(Palette.subtitle)
                 .frame(maxWidth: .infinity)
                 .frame(height: ControlMetrics.round)
         } else {
@@ -623,14 +624,14 @@ struct DetailView: View {
         let level: Level = (stale || l.isReset) ? .ok : store.level(l.percentLeft)
         // What's left on the left, when it resets on the right, on one line (AK).
         return HStack(alignment: .firstTextBaseline, spacing: 10) {
-            LimitIcon(kind: l.kind, size: 14).foregroundStyle(.secondary).frame(width: 16)
+            LimitIcon(kind: l.kind, size: 14).foregroundStyle(Palette.subtitle).frame(width: 16)
             Text(l.isReset ? "Reset, checking…" : amount)
                 .font(.title3.weight(.semibold)).monospacedDigit()
                 .foregroundStyle(Palette.text(level))
                 .fixedSize()
             Spacer(minLength: 8)
             if let r = l.resetsAt, !l.isReset {
-                Text("Resets " + Format.when(r)).font(.callout).foregroundStyle(.secondary)
+                Text("Resets " + Format.when(r)).font(.callout).foregroundStyle(Palette.subtitle)
                     .multilineTextAlignment(.trailing)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -659,11 +660,11 @@ struct AccountRow: View {
                 Text("\(Int(p.rounded()))%").font(.title3.weight(.semibold)).monospacedDigit()
                     .foregroundStyle(Palette.text(lvl))
             } else if let e = store.accountErrors[appID]?[account.id] {
-                Image(systemName: "exclamationmark.circle").foregroundStyle(.secondary).help(e)
+                Image(systemName: "exclamationmark.circle").foregroundStyle(Palette.subtitle).help(e)
             } else {
                 ActivityRing()
             }
-            Image(systemName: "line.3.horizontal").font(.callout).foregroundStyle(.secondary)
+            Image(systemName: "line.3.horizontal").font(.callout).foregroundStyle(Palette.subtitle)
                 .help("Drag to reorder. The top account is used first.")
                 .accessibilityHidden(true)
         }

@@ -45,8 +45,11 @@ struct WebSite {
                 cookieDomain: "manus.im", cookies: [], readsUsage: false),
     ]
 
-    /// The four shown first in onboarding (Figma screen 02).
-    static let featured = ["chatgpt", "perplexity", "higgsfield", "elevenlabs"]
+    /// The four shown first in onboarding (Figma screen 02). ChatGPT left this list when it
+    /// became one app with Codex (AK, 2026-11-09), so Suno takes its place.
+    static let featured = ["perplexity", "higgsfield", "elevenlabs", "suno"]
+    /// Web apps that are the same app as one on this Mac, so they are never listed twice.
+    static let sameAsMacApp = ["chatgpt": "codex"]
 
     static func site(_ id: String) -> WebSite? { all.first { $0.id == id } }
 
