@@ -255,8 +255,13 @@ enum SelfTest {
         let itemAfter = bar.item.button?.window?.frame
         _ = (itemBefore, itemAfter)
         print("        popover before \(popBefore.map { NSStringFromRect($0) } ?? "none"), after \(popAfter.map { NSStringFromRect($0) } ?? "none")")
-        check("The open popover stays put when the pill turns into the icon (AK)",
-              popBefore != nil && popAfter != nil && abs(popBefore!.minX - popAfter!.minX) < 1 && abs(popBefore!.maxY - popAfter!.maxY) < 1)
+        // The popover hugs its content (v4), and the status line goes away with the pill, so its
+        // height may change. It must keep its side and the edge next to the icon. Offscreen
+        // runs can place it above the item, so either edge counts.
+        let samePlace = popBefore.flatMap { b in popAfter.map { a in
+            abs(b.minX - a.minX) < 1 && (abs(b.maxY - a.maxY) < 1 || abs(b.minY - a.minY) < 1)
+        } } ?? false
+        check("The open popover stays put when the pill turns into the icon (AK)", samePlace)
         bar.popover.performClose(nil)
         let iconWidth = bar.item.length
         let anchorAtIcon = anchorX()
