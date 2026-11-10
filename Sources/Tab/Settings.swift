@@ -157,7 +157,8 @@ struct SettingsView: View {
             }
 
             Section {
-                // Both buttons sit together in the middle of the section, 10pt apart (AK).
+                // Both buttons sit together in the right corner, 10pt apart (AK, 2026-11-09: back
+                // from centered).
                 HStack(spacing: 10) {
                     Spacer()
                     Button {
@@ -169,12 +170,11 @@ struct SettingsView: View {
                     .help("For support. It holds no sign-ins, prompts or work.")
                     // Red text like Remove (AK): deeper in Light Mode, lighter in Dark Mode, both readable.
                     Button { NSApp.terminate(nil) } label: { ButtonText("Quit TAB").foregroundStyle(Palette.redText) }.secondaryButton()
-                    Spacer()
                 }
+                // The feedback link sits in the right corner too, under Quit TAB (AK).
                 HStack {
                     Spacer()
                     FeedbackLink { feedback = true }
-                    Spacer()
                 }
             }
         }

@@ -591,6 +591,14 @@ enum SelfTest {
         let greenShot = Store.preview(apps: ["claude": 62, "codex": 80, "cursor": 70])
         greenShot.snapshots["codex"] = ProviderSnapshot(limits: Store.useItLimits("codex"), fetchedAt: Date())
         shot(PopoverView(store: greenShot, openSettings: {}, openConnect: { _, _ in }), NSSize(width: 340, height: 490), "dev-popover-green")
+        // Many apps (AK, 2026-11-09): up to 9 show at once in 3 rows with no scrolling; past
+        // that, the grid stays 3 rows tall and scrolls.
+        let manyIDs = ["claude", "codex", "grokbot", "gemini", "copilot", "zed", "grok", "perplexity",
+                       "higgsfield", "elevenlabs", "suno", "manus"]
+        for n in [8, 12] {
+            let many = Store.preview(apps: Dictionary(uniqueKeysWithValues: manyIDs.prefix(n).enumerated().map { ($1, Double(30 + $0 * 6)) }))
+            shot(PopoverView(store: many, openSettings: {}, openConnect: { _, _ in }), NSSize(width: 340, height: n > 9 ? 640 : 600), "dev-popover-\(n)-apps")
+        }
         // Every official logo as TAB draws it, to check sizes side by side.
         let logoIDs = BrandLogos.all.keys.sorted()
         shot(LazyVGrid(columns: Array(repeating: GridItem(.fixed(70)), count: 6), spacing: 12) {

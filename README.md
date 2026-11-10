@@ -21,7 +21,7 @@ When several apps need you at once, red comes first, then yellow, then green. Ap
 Open Terminal (press ⌘ Space, type Terminal, press Return), paste this line, press Return, then type `y`:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/araje-bot/TAB-Track-AI-Balance/v0.2.3/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/araje-bot/TAB-Track-AI-Balance/v0.2.4/install.sh | bash
 ```
 
 TAB opens with a short welcome and shows the AI apps it found. It needs macOS 13 or later, on Apple silicon or Intel.
@@ -57,7 +57,7 @@ TAB used to be called TUM. If you had TUM, the installer replaces it, and TAB br
 ## Uninstall
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/araje-bot/TAB-Track-AI-Balance/v0.2.3/uninstall.sh | bash
+curl -fsSL https://raw.githubusercontent.com/araje-bot/TAB-Track-AI-Balance/v0.2.4/uninstall.sh | bash
 ```
 
 Or drag TAB from Applications to the Trash.

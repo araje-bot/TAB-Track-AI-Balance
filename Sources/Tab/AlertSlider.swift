@@ -66,7 +66,8 @@ struct LevelStates: View {
     }
 
     private var arrow: some View {
-        Image(systemName: "arrow.right").font(.body).foregroundStyle(Palette.subtitle).accessibilityHidden(true)
+        // Two chevrons with no line, a lighter step forward (AK, 2026-11-09).
+        Image(systemName: "chevron.right.2").font(.body).foregroundStyle(Palette.subtitle).accessibilityHidden(true)
     }
 
     private func state<V: View>(_ label: String, _ detail: String, @ViewBuilder _ v: () -> V) -> some View {

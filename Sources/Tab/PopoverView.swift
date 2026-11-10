@@ -98,7 +98,11 @@ struct PopoverView: View {
     /// Rows of tiles shown. Sized for the fullest tab, so switching tabs never resizes the popover
     /// (AK: a resize mid-switch made the title and tabs flicker). Past three rows, it scrolls.
     private var gridRows: Int { min(3, (max(store.mostTabApps, 1) + 2) / 3) }
-    static let rowHeight: CGFloat = 104
+    /// One row of tiles: circle, name and percent, plus the gap to the next row. Up to nine apps
+    /// show at once with no scrolling (AK, 2026-11-09); past that the grid scrolls, with a sliver
+    /// of the fourth row showing so it's clear there is more.
+    static let rowHeight: CGFloat = 109
+    private var gridHeight: CGFloat { CGFloat(gridRows) * Self.rowHeight + (store.mostTabApps > 9 ? 28 : 0) }
 
     private var main: some View {
         VStack(spacing: 14) {
@@ -138,7 +142,7 @@ struct PopoverView: View {
                         .font(.callout).foregroundStyle(Palette.subtitle)
                 }
                 .frame(maxWidth: .infinity)
-                .frame(height: CGFloat(gridRows) * Self.rowHeight)
+                .frame(height: gridHeight)
             } else {
                 Group {
                     if store.tabApps.count > 9 {
@@ -147,7 +151,7 @@ struct PopoverView: View {
                         grid
                     }
                 }
-                .frame(height: CGFloat(gridRows) * Self.rowHeight, alignment: .top)
+                .frame(height: gridHeight, alignment: .top)
                 // A tab that lists other apps swaps the whole grid at once (AK).
                 .id(store.tabApps)
                 .transition(.identity)
@@ -161,6 +165,9 @@ struct PopoverView: View {
                     .background(GeometryReader { g in Color.clear.onAppear { addFrame = g.frame(in: .named("popover")) }
                         .onChange(of: g.frame(in: .named("popover"))) { addFrame = $0 } })
             }
+
+            // A quiet line above the footer (AK, 2026-11-09), in the system separator color.
+            Divider()
 
             HStack {
                 ShortcutHint(before: "", after: "for all apps")

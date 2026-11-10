@@ -202,7 +202,7 @@ private struct HowStep: View {
             card(2, "TAB checks how much each app has left") {
                 HStack(spacing: 10) {
                     LiquidTile(pct: 46, level: .ok, glyph: store.glyph(store.demoID), symbol: store.symbol(store.demoID), size: 48)
-                    Image(systemName: "arrow.right").foregroundStyle(Palette.subtitle)
+                    Image(systemName: "chevron.right.2").foregroundStyle(Palette.subtitle)
                     Text("46%").font(.title2.bold()).foregroundStyle(.primary)
                 }
             }

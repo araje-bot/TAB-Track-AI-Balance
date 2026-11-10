@@ -473,8 +473,10 @@ struct ConnectButton: View {
                 Text("Connect \(name)")
             } icon: {
                 PlugGlyph()
-                    .stroke(Palette.connectGlyph, style: StrokeStyle(lineWidth: 1.3, lineCap: .round, lineJoin: .round))
-                    .frame(width: 15, height: 15)
+                    // 17pt (AK, 2026-11-09: a touch bigger). The circle stays 28pt, since the
+                    // label box is fixed at 16pt and the plug just reaches past it.
+                    .stroke(Palette.connectGlyph, style: StrokeStyle(lineWidth: 1.4, lineCap: .round, lineJoin: .round))
+                    .frame(width: 17, height: 17)
                     .rotationEffect(.degrees(45))
             }
         }
@@ -494,9 +496,9 @@ func statusText(_ s: String) -> Text {
     return connectedLabel(word) + Text(String(s.dropFirst(word.count)))
 }
 
-/// "Connected" (or "2 accounts") with a small check before it, both in the brighter gray (AK).
+/// "Connected" (or "2 accounts") with a small line check before it (AK: a line icon, not filled), both in the brighter gray.
 func connectedLabel(_ word: String) -> Text {
-    (Text(Image(systemName: "checkmark.circle.fill")).font(.caption2) + Text(" " + word))
+    (Text(Image(systemName: "checkmark")).font(.caption2.weight(.medium)) + Text(" " + word))
         .foregroundColor(Palette.connectedText)
 }
 

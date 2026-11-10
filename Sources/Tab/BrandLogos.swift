@@ -81,19 +81,14 @@ extension BrandLogos {
         return whiteMark(art, size: fit(art.size, in: NSRect(x: 0, y: 0, width: 96, height: 96)).size)
     }
 
-    /// Grok Bot publishes no one-color logo, so this redraws its app icon as a white mark
-    /// (AK, 2026-11-09: the old round face didn't look like it). Measured from the icon: the
-    /// head is a big circle whose top edge arcs across the upper third, cut off by the icon's
-    /// rounded square, with two eyes tilted 55 degrees, right of center, the left one lower and
-    /// thicker. The eyes are cut out, like the other marks. Units are shares of the icon (y down).
+    /// Grok Bot publishes no one-color logo, so this draws one as a white mark: a round face
+    /// (AK, 2026-11-09: overall circular) with the two eyes placed as on its app icon, tilted
+    /// 55 degrees, right of center, the left one lower and thicker. The eyes are cut out, like
+    /// the other marks. Units are shares of the mark (y down).
     private static func grokBotMark() -> NSImage {
         let s: CGFloat = 96
         return NSImage(size: NSSize(width: s, height: s), flipped: true) { _ in
-            let tile = NSBezierPath(roundedRect: NSRect(x: 0, y: 0, width: s, height: s),
-                                    xRadius: s * Radius.tile, yRadius: s * Radius.tile)
-            tile.addClip()
-            let r = 0.574 * s
-            let head = NSBezierPath(ovalIn: NSRect(x: 0.423 * s - r, y: 0.749 * s - r, width: 2 * r, height: 2 * r))
+            let head = NSBezierPath(ovalIn: NSRect(x: 0, y: 0, width: s, height: s))
             head.windingRule = .evenOdd
             // Center x, center y, length and width of each eye.
             for (x, y, l, w) in [(0.484, 0.557, 0.34, 0.16), (0.747, 0.428, 0.31, 0.112)] as [(CGFloat, CGFloat, CGFloat, CGFloat)] {
