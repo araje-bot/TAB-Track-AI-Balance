@@ -660,8 +660,6 @@ enum SelfTest {
             Divider()
             SettingRow(LevelSlider.redTitle, subtitle: LevelSlider.redSubtitle) { LevelSlider(store: yellow, red: true) }
             Divider()
-            SettingRow("Show usage when I open a low app", subtitle: "A quick look when you open an app that's running low") { Toggle("", isOn: .constant(true)).labelsHidden().toggleStyle(.switch).controlSize(.regular) }
-            Divider()
             SettingRow("Welcome screens", subtitle: "See the welcome tour again") { Button("Show welcome screens again", systemImage: "play.fill") {}.iconButton() }
         }.padding(.horizontal, 14).padding(.vertical, 6).frame(width: 520).contentCard().padding(16), NSSize(width: 560, height: 290), "dev-setting-rows")
         shot(OnboardingView(store: Store.preview(apps: ["claude": 62], onboardingDone: false), finish: {}, startStep: 4),

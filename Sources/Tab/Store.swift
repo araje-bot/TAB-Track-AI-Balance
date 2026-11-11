@@ -106,7 +106,6 @@ final class Store: ObservableObject {
         }
     }
     /// Off by default: TAB changes its icon and does not pop things up unless asked.
-    @Published var headsUpOnOpen: Bool { didSet { defaults.set(headsUpOnOpen, forKey: "headsUpOnOpen") } }
     /// The shortcut the person picked, and the one actually working (another app may own the pick).
     @Published var shortcutChoice: ShortcutChoice { didSet { defaults.set(shortcutChoice.stored, forKey: "shortcutChoice"); onShortcutChange?() } }
     @Published var activeShortcut: ShortcutChoice = .commandT
@@ -171,7 +170,6 @@ final class Store: ObservableObject {
     /// TAB is always in the Dock while one of its windows is open. This keeps it there all the time.
     @Published var alwaysInDock: Bool { didSet { defaults.set(alwaysInDock, forKey: "alwaysInDock"); onDockSettingChange?() } }
     var onDockSettingChange: (() -> Void)?
-    private var lastHeadsUp: [String: Date] = [:]
 
     /// Where settings are saved. Previews and sample data use a scratch suite, never the real one.
     private let defaults: UserDefaults
@@ -239,7 +237,7 @@ final class Store: ObservableObject {
         let seen = Self.onboardingSeenForThisCopy()
         onboardingDone = seen
         if defaults === UserDefaults.standard { Keychain.silentReadsAllowed = seen }
-        headsUpOnOpen = defaults.bool(forKey: "headsUpOnOpen")
+        defaults.removeObject(forKey: "headsUpOnOpen")   // the pop-up on opening a low app is gone (AK, 2026-11-10)
         // ⌘T became the default on 2026-11-04. Move everyone to it once; after that the choice sticks.
         if !defaults.bool(forKey: "shortcutDefaultCommandT") {
             defaults.set(true, forKey: "shortcutDefaultCommandT")
@@ -474,22 +472,6 @@ final class Store: ObservableObject {
             self.pending.remove(id)
             await self.refresh(id)
         }
-    }
-
-    func connectedID(for bundleURL: URL?) -> String? {
-        guard let u = bundleURL?.standardizedFileURL,
-              let a = detected.first(where: { $0.appURL?.standardizedFileURL == u }),
-              connected.contains(a.id) else { return nil }
-        return a.id
-    }
-
-    /// True when the person opened a connected app that is low, at most once every 30 minutes per app.
-    func shouldHeadsUp(_ id: String) -> Bool {
-        guard headsUpOnOpen, !isStale(id), level(watchPercent(id)) != .ok else { return false }
-        // Every switch to a low app shows it, but not again within a minute (fast back-and-forth).
-        if let t = lastHeadsUp[id], -t.timeIntervalSinceNow < 60 { return false }
-        lastHeadsUp[id] = Date()
-        return true
     }
 
     /// Maps an app the person just left back to a connected provider.

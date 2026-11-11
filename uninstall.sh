@@ -1,7 +1,7 @@
 #!/bin/bash
 # Removes TAB (Track AI Balance) from this Mac.
 #
-#   curl -fsSL https://raw.githubusercontent.com/araje-bot/TAB-Track-AI-Balance/v0.2.4/uninstall.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/araje-bot/TAB-Track-AI-Balance/v0.2.5/uninstall.sh | bash
 #
 # Quits TAB and moves TAB.app to the Trash. Settings, the diagnostics log and TAB's own sign-ins
 # are left alone and explained at the end, so nothing you may want is deleted by surprise.

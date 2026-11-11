@@ -182,10 +182,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 guard let self = self else { return }
                 self.store.activity(bundleURL: self.lastFrontURL)
                 self.lastFrontURL = NSWorkspace.shared.frontmostApplication?.bundleURL
-                let ownWindowOpen = [self.onboarding, self.settings].contains { $0?.window.isVisible == true }
-                if !ownWindowOpen, let id = self.store.connectedID(for: self.lastFrontURL), self.store.shouldHeadsUp(id) {
-                    self.showQuick(for: 3.5)
-                }
             }
         }
         lastFrontURL = NSWorkspace.shared.frontmostApplication?.bundleURL
@@ -270,7 +266,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// release comes from the same registered shortcut, so TAB still never watches the keyboard.
     /// A held key can repeat the press, so showing again while open does nothing.
     private func shortcutPressed() {
-        autoHide?.cancel()   // a heads-up already showing stays for as long as the keys are held
+        autoHide?.cancel()
         guard !quick.isVisible else { return }
         showQuick(for: nil)
     }
@@ -279,8 +275,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         hideQuick()
     }
 
-    /// Shows the quick view, for a few seconds when `seconds` is set (the heads-up when you switch
-    /// into a low app, and the Developer menu).
+    /// Shows the quick view. It only ever opens while the shortcut is held, or for a few seconds
+    /// from the Developer menu (`seconds`). Nothing opens it on its own (AK, 2026-11-10).
     private func showQuick(for seconds: Double?) {
         autoHide?.cancel()
         store.mode = store.watch   // the quick view shows the default view too (AK)
