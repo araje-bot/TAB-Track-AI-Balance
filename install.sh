@@ -30,7 +30,7 @@ readonly ZIP_NAME="${APP_NAME}-${VERSION}.zip"
 # The build is kept in the repository at the version's tag, so no separate release page is needed.
 readonly ZIP_URL="https://raw.githubusercontent.com/${REPO}/v${VERSION}/dist/${ZIP_NAME}"
 # The SHA-256 of TAB-0.2.6.zip. make_dmg.sh --update-installer writes it here for each release.
-readonly ZIP_SHA256="af876b2407b38d98a41f1104e142e409adf8c52e068e1cabeb9d70df32a44506"
+readonly ZIP_SHA256="978a550f316b300a66aca1e3ed68a638fa794433a952dcec600eb7f00bdbc0cb"
 
 TMP=""
 UNPACKED=""
