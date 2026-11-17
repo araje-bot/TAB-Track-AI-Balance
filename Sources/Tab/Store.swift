@@ -710,6 +710,11 @@ final class Store: ObservableObject {
 
     /// How long one app keeps the pill before the next one in its color gets a turn.
     static let pillTurnLength: TimeInterval = 60
+    /// The green pill is only a suggestion. After this long in the menu bar the person has seen
+    /// it, so it marks itself seen and turns back into the white icon, Got it or not (AK, 2026-11-17).
+    static let greenPillLength: TimeInterval = 180
+    /// When the green pill started showing this time. Cleared whenever it isn't showing.
+    private var greenSince: Date?
     /// Whose turn it is, and since when. Kept in memory only.
     private(set) var pillTurn: String?
     private var turnStarted: Date?
@@ -762,6 +767,18 @@ final class Store: ObservableObject {
     /// News takes the pill at once; otherwise the turn lasts `pillTurnLength`, and never ends while
     /// the person is looking at TAB.
     func rotatePill(now: Date = Date()) {
+        if pillState?.level == .use {
+            let since = greenSince ?? now
+            greenSince = since
+            // Never while the person is looking at TAB, so the line doesn't vanish as they read it.
+            if !holdPill, now.timeIntervalSince(since) >= Self.greenPillLength {
+                greenSince = nil
+                markUseItSeen()   // moves the pill on too
+                return
+            }
+        } else {
+            greenSince = nil
+        }
         let c = pillCandidates
         let ids = Set(c.map(\.id))
         for id in Array(lastTurn.keys) where !ids.contains(id) { lastTurn[id] = nil }

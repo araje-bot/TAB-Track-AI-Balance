@@ -341,6 +341,19 @@ enum SelfTest {
         let greenAfter = green.pillState
         check("Green pill and its tip show until Got it", greenBefore?.id == "codex" && greenBefore?.level == .use
               && greenAfter == nil && !green.summary.isTip)
+        // The green pill clears itself after 3 minutes in the menu bar, but not while TAB is open.
+        let quiet = Store.preview(apps: ["claude": 80, "codex": 80])
+        quiet.snapshots["codex"] = ProviderSnapshot(limits: Store.useItLimits("codex"), fetchedAt: now)
+        quiet.rotatePill(now: now)
+        quiet.rotatePill(now: now.addingTimeInterval(170))
+        let stillGreen = quiet.pillState?.level == .use
+        quiet.holdPill = true
+        quiet.rotatePill(now: now.addingTimeInterval(200))
+        let heldGreen = quiet.pillState?.level == .use
+        quiet.holdPill = false
+        quiet.rotatePill(now: now.addingTimeInterval(205))
+        check("The green pill goes away on its own after 3 minutes", stillGreen && heldGreen
+              && quiet.pillState == nil && !quiet.summary.isTip)
         green.mode = .session
         green.snapshots["claude"] = ProviderSnapshot(limits: Store.sampleLimits("claude", pct: 8), fetchedAt: now)
         check("A warning always wins over the green pill", green.pillState?.level == .out)
