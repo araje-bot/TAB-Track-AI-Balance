@@ -86,7 +86,7 @@ After a TAB update, macOS may ask once more, since it ties Always Allow to the e
 
 ## Good to know
 
-- TAB never asks for your password. When you connect Gemini, you type it on Google's own sign-in page, shown in a small TAB window. TAB doesn't read or save your password. TAB does not need keyboard, screen or accessibility permissions.
+- TAB app never asks for your password. When you connect web apps, you type it on own sign-in page, shown in a small TAB window. TAB doesn't read or save your password. TAB does not need keyboard, screen or accessibility permissions.
 - macOS may ask for your password once when you connect Claude or Zed. See [why](#why-macos-asks-for-your-password).
 - The installer downloads one exact build from this repository and checks it against a fingerprint written into the script. A different file is deleted, not installed.
 - All of TAB's code is in this repository, so anyone can read exactly what it does.
